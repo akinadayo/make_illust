@@ -26,10 +26,16 @@ steps:
         echo "=== Checking Dockerfile.production content ==="
         head -20 frontend/Dockerfile.production
         echo "=== Building frontend Docker image ==="
+        # バックエンドURLを取得（既にデプロイ済みの場合）
+        BACKEND_URL=$(gcloud run services describe standing-set-backend \
+          --region=${_REGION} \
+          --format='value(status.url)' 2>/dev/null || echo "https://standing-set-backend-812480532939.asia-northeast1.run.app")
+        echo "Using backend URL: $$BACKEND_URL"
         docker build \
           --progress=plain \
           --no-cache \
           --pull \
+          --build-arg VITE_API_URL=$$BACKEND_URL \
           -t gcr.io/$PROJECT_ID/standing-set-frontend:$COMMIT_SHA \
           -t gcr.io/$PROJECT_ID/standing-set-frontend:latest \
           -f frontend/Dockerfile.production \
