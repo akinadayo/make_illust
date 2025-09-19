@@ -1,6 +1,6 @@
 # Cloud Build configuration for automatic deployment
 steps:
-  # Build backend image
+  # Step 1: Build backend image
   - name: 'gcr.io/cloud-builders/docker'
     id: 'build-backend'
     args:
@@ -13,7 +13,7 @@ steps:
       - 'Dockerfile.production'
       - '.'
 
-  # Build frontend image
+  # Step 2: Build frontend image
   - name: 'gcr.io/cloud-builders/docker'
     id: 'build-frontend'
     args:
@@ -26,21 +26,23 @@ steps:
       - 'frontend/Dockerfile.production'
       - './frontend'
 
-  # Push backend image
+  # Step 3: Push backend image
   - name: 'gcr.io/cloud-builders/docker'
     id: 'push-backend'
     args:
       - 'push'
+      - '--all-tags'
       - 'gcr.io/$PROJECT_ID/standing-set-backend'
 
-  # Push frontend image
+  # Step 4: Push frontend image
   - name: 'gcr.io/cloud-builders/docker'
     id: 'push-frontend'
     args:
       - 'push'
+      - '--all-tags'
       - 'gcr.io/$PROJECT_ID/standing-set-frontend'
 
-  # Deploy backend to Cloud Run
+  # Step 5: Deploy backend to Cloud Run
   - name: 'gcr.io/cloud-builders/gcloud'
     id: 'deploy-backend'
     args:
@@ -50,7 +52,7 @@ steps:
       - '--image'
       - 'gcr.io/$PROJECT_ID/standing-set-backend:$COMMIT_SHA'
       - '--region'
-      - 'asia-northeast1'
+      - '${_REGION}'
       - '--platform'
       - 'managed'
       - '--allow-unauthenticated'
@@ -64,27 +66,68 @@ steps:
       - '100'
       - '--max-instances'
       - '10'
+      - '--min-instances'
+      - '0'
+      - '--set-env-vars'
+      - 'NANOBANANA_API_KEY=${_NANOBANANA_API_KEY},PORT=8080'
 
-  # Deploy frontend to Cloud Run
+  # Step 6: Get backend URL
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'get-backend-url'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        BACKEND_URL=$(gcloud run services describe standing-set-backend \
+          --region=${_REGION} \
+          --format='value(status.url)')
+        echo "Backend URL: $$BACKEND_URL"
+        echo $$BACKEND_URL > /workspace/backend_url.txt
+
+  # Step 7: Deploy frontend to Cloud Run with backend URL
   - name: 'gcr.io/cloud-builders/gcloud'
     id: 'deploy-frontend'
+    entrypoint: 'bash'
     args:
-      - 'run'
-      - 'deploy'
-      - 'standing-set-frontend'
-      - '--image'
-      - 'gcr.io/$PROJECT_ID/standing-set-frontend:$COMMIT_SHA'
-      - '--region'
-      - 'asia-northeast1'
-      - '--platform'
-      - 'managed'
-      - '--allow-unauthenticated'
-      - '--memory'
-      - '512Mi'
-      - '--cpu'
-      - '1'
-      - '--port'
-      - '80'
+      - '-c'
+      - |
+        BACKEND_URL=$(cat /workspace/backend_url.txt)
+        gcloud run deploy standing-set-frontend \
+          --image=gcr.io/$PROJECT_ID/standing-set-frontend:$COMMIT_SHA \
+          --region=${_REGION} \
+          --platform=managed \
+          --allow-unauthenticated \
+          --memory=512Mi \
+          --cpu=1 \
+          --port=80 \
+          --min-instances=0 \
+          --max-instances=10 \
+          --set-env-vars="VITE_API_URL=$$BACKEND_URL"
+
+  # Step 8: Display deployment URLs
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'show-urls'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        echo "======================================"
+        echo "🚀 Deployment Successful!"
+        echo "======================================"
+        BACKEND_URL=$(gcloud run services describe standing-set-backend \
+          --region=${_REGION} \
+          --format='value(status.url)')
+        FRONTEND_URL=$(gcloud run services describe standing-set-frontend \
+          --region=${_REGION} \
+          --format='value(status.url)')
+        echo "📦 Backend URL:  $$BACKEND_URL"
+        echo "🌐 Frontend URL: $$FRONTEND_URL"
+        echo "======================================"
+
+# Substitutions (these will be set in Cloud Build Trigger)
+substitutions:
+  _REGION: 'asia-northeast1'
+  _NANOBANANA_API_KEY: 'your-api-key-here' # This will be overridden in trigger
 
 # Store images in Container Registry
 images:
@@ -92,6 +135,11 @@ images:
   - 'gcr.io/$PROJECT_ID/standing-set-backend:latest'
   - 'gcr.io/$PROJECT_ID/standing-set-frontend:$COMMIT_SHA'
   - 'gcr.io/$PROJECT_ID/standing-set-frontend:latest'
+
+# Build options
+options:
+  logging: CLOUD_LOGGING_ONLY  # Cloud Loggingのみを使用（GCSバケット不要）
+  machineType: 'E2_HIGHCPU_8'
 
 # Build timeout
 timeout: '1200s'
