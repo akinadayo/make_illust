@@ -140,6 +140,11 @@ def generate_images_with_vertex_simple(character: SimpleCharacter) -> List[bytes
         for i, prompt in enumerate(prompts):
             expression_name = ['ニュートラル', '照れながら微笑み', '困り顔', 'むすっ'][i]
             logger.info(f"Generating expression {i+1}/4: {expression_name}")
+            # デバッグ: プロンプトの内容を確認
+            logger.info(f"Full prompt length: {len(prompt)} chars")
+            if len(prompt) > 1000:
+                logger.info(f"Prompt contains character info: {'character.age' in prompt}")
+                logger.info(f"Actual age value in prompt: {character.age}")
             
             # 各表情用のリクエストボディ
             request_body = {
