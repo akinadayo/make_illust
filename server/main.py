@@ -11,20 +11,26 @@ from typing import List, Dict, Any, Optional
 import requests
 from rembg import remove
 from PIL import Image
-from google import genai
-from google.genai import types
+import vertexai
+from vertexai.preview.vision_models import ImageGenerationModel
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Google Cloud API設定
-GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+# Vertex AI設定
+PROJECT_ID = "makeillust"
+LOCATION = "asia-northeast1"  # または "us-central1"
 
-# Initialize Gemini client
-client = None
-if GOOGLE_API_KEY:
-    client = genai.Client(api_key=GOOGLE_API_KEY)
+# Vertex AIを初期化
+try:
+    vertexai.init(project=PROJECT_ID, location=LOCATION)
+    # ImageGenerationModelをロード
+    image_model = ImageGenerationModel.from_pretrained("imagegeneration@006")
+    logger.info(f"Vertex AI initialized with project={PROJECT_ID}, location={LOCATION}")
+except Exception as e:
+    logger.error(f"Failed to initialize Vertex AI: {e}")
+    image_model = None
 
 app = FastAPI(title="Standing-Set-5 API with Google Cloud")
 
@@ -101,37 +107,42 @@ def health_check():
     """ヘルスチェックエンドポイント"""
     return {
         "status": "healthy", 
-        "api_key_configured": bool(GOOGLE_API_KEY),
-        "api_key_length": len(GOOGLE_API_KEY) if GOOGLE_API_KEY else 0,
+        "vertex_ai_configured": bool(image_model),
+        "project": PROJECT_ID,
+        "location": LOCATION,
         "environment": os.getenv("K_SERVICE", "local"),
-        "api_type": "Google Cloud Gemini"
+        "api_type": "Vertex AI ImageGeneration"
     }
 
-def generate_image_with_gemini(prompt: str) -> bytes:
-    """Gemini 2.5 Flash Imageで画像を生成"""
-    if not client:
-        raise HTTPException(status_code=500, detail="Google API key not configured")
+def generate_image_with_vertex(prompt: str) -> bytes:
+    """Vertex AI ImageGenerationModelで画像を生成"""
+    if not image_model:
+        raise HTTPException(status_code=500, detail="Vertex AI not initialized")
     
     try:
-        response = client.models.generate_content(
-            model="gemini-2.5-flash-image-preview",
-            contents=prompt
+        # Vertex AIで画像を生成
+        response = image_model.generate_images(
+            prompt=prompt,
+            number_of_images=1,
+            language="en",
+            add_watermark=False,
+            aspect_ratio="9:16",  # 立ち絵用の縦長比率
+            safety_filter_level="block_some",
+            person_generation="allow_adult"
         )
         
-        # Extract image data from response
-        image_parts = [
-            part.inline_data.data
-            for part in response.candidates[0].content.parts
-            if part.inline_data
-        ]
-        
-        if image_parts:
-            return image_parts[0]
+        # 生成された画像を取得
+        if response.images:
+            # 画像をバイト列に変換
+            image = response.images[0]
+            buffered = io.BytesIO()
+            image._pil_image.save(buffered, format="PNG")
+            return buffered.getvalue()
         else:
             raise Exception("No image generated")
             
     except Exception as e:
-        logger.error(f"Gemini image generation error: {str(e)}")
+        logger.error(f"Vertex AI image generation error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Image generation failed: {str(e)}")
 
 def create_image_prompt(character: Character, expression: str) -> str:
@@ -190,12 +201,12 @@ Style: Japanese anime/manga illustration, soft pastel colors, clean lines, profe
 async def generate_images(request: GenerateRequest):
     """キャラクター画像を生成するメインエンドポイント"""
     try:
-        # APIキーの確認
-        if not GOOGLE_API_KEY or not client:
-            logger.error("GOOGLE_API_KEY is not set or client not initialized")
+        # Vertex AIの初期化確認
+        if not image_model:
+            logger.error("Vertex AI ImageGenerationModel is not initialized")
             raise HTTPException(
                 status_code=500,
-                detail="API key is not configured. Please set GOOGLE_API_KEY environment variable."
+                detail="Vertex AI is not configured properly."
             )
         
         logger.info(f"Generating images for character: {request.character.character_id}")
@@ -213,14 +224,14 @@ async def generate_images(request: GenerateRequest):
             prompts.append(prompt)
             logger.info(f"Created prompt for {expression}: {prompt[:100]}...")
             
-            # Geminiで画像を生成
+            # Vertex AIで画像を生成
             try:
-                image_bytes = generate_image_with_gemini(prompt)
+                image_bytes = generate_image_with_vertex(prompt)
                 images.append(image_bytes)
                 logger.info(f"Successfully generated image for {expression}")
             except Exception as e:
                 logger.error(f"Failed to generate image for {expression}: {str(e)}")
-                # エラーが発生した場合、空の画像を追加
+                # エラーが発生した場合、エラーを送出
                 raise HTTPException(
                     status_code=500,
                     detail=f"Failed to generate image for {expression}: {str(e)}"

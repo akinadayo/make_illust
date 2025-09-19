@@ -83,8 +83,6 @@ steps:
       - '10'
       - '--min-instances'
       - '0'
-      - '--set-secrets'
-      - 'GOOGLE_API_KEY=nanobanana-api-key:latest'
 
   # Step 6: Get backend URL
   - name: 'gcr.io/cloud-builders/gcloud'
