@@ -3,16 +3,13 @@ FROM node:18-alpine as builder
 
 WORKDIR /app
 
-# Copy package files  
+# Copy only package.json first
 COPY package.json ./
-# Copy package-lock.json if it exists
-COPY package-lock.json* ./
 
-# Install ALL dependencies (including devDependencies for build)
-# Use npm install if package-lock.json doesn't exist
+# Install dependencies
 RUN npm install
 
-# Copy application files
+# Copy all application files
 COPY . .
 
 # Build the application
