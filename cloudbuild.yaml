@@ -1,4 +1,11 @@
 # Cloud Build configuration for automatic deployment
+
+# Secret Managerからシークレットを利用可能にする
+availableSecrets:
+  secretManager:
+    - versionName: projects/$PROJECT_ID/secrets/nanobanana-api-key/versions/latest
+      env: 'GOOGLE_API_KEY'
+
 steps:
   # Step 1: Build backend image
   - name: 'gcr.io/cloud-builders/docker'
@@ -60,6 +67,7 @@ steps:
   # Step 5: Deploy backend to Cloud Run
   - name: 'gcr.io/cloud-builders/gcloud'
     id: 'deploy-backend'
+    secretEnv: ['GOOGLE_API_KEY']
     args:
       - 'run'
       - 'deploy'
@@ -84,7 +92,7 @@ steps:
       - '--min-instances'
       - '0'
       - '--set-env-vars'
-      - 'NANOBANANA_API_KEY=${_NANOBANANA_API_KEY}'
+      - 'GOOGLE_API_KEY=$$GOOGLE_API_KEY'
 
   # Step 6: Get backend URL
   - name: 'gcr.io/cloud-builders/gcloud'
@@ -142,7 +150,6 @@ steps:
 # Substitutions (these will be set in Cloud Build Trigger)
 substitutions:
   _REGION: 'asia-northeast1'
-  _NANOBANANA_API_KEY: 'your-api-key-here' # This will be overridden in trigger
 
 # Store images in Container Registry
 images:

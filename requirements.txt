@@ -5,3 +5,4 @@ requests==2.31.0
 rembg==2.0.52
 pillow==10.1.0
 python-multipart==0.0.6
+google-genai==0.1.0

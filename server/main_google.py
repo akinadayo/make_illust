@@ -10,9 +10,8 @@ from pydantic import BaseModel, Field
 from typing import List, Dict, Any, Optional
 import requests
 from rembg import remove
-from PIL import Image
-from google import genai
-from google.genai import types
+from PIL import Image, ImageDraw, ImageFont
+import random
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -20,11 +19,7 @@ logger = logging.getLogger(__name__)
 
 # Google Cloud API設定
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-
-# Initialize Gemini client
-client = None
-if GOOGLE_API_KEY:
-    client = genai.Client(api_key=GOOGLE_API_KEY)
+GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent"
 
 app = FastAPI(title="Standing-Set-5 API with Google Cloud")
 
@@ -107,92 +102,164 @@ def health_check():
         "api_type": "Google Cloud Gemini"
     }
 
-def generate_image_with_gemini(prompt: str) -> bytes:
-    """Gemini 2.5 Flash Imageで画像を生成"""
-    if not client:
+def generate_with_gemini(prompt: str) -> str:
+    """Geminiを使ってテキスト生成（プロンプトの詳細化など）"""
+    if not GOOGLE_API_KEY:
         raise HTTPException(status_code=500, detail="Google API key not configured")
     
-    try:
-        response = client.models.generate_content(
-            model="gemini-2.5-flash-image-preview",
-            contents=prompt
-        )
-        
-        # Extract image data from response
-        image_parts = [
-            part.inline_data.data
-            for part in response.candidates[0].content.parts
-            if part.inline_data
-        ]
-        
-        if image_parts:
-            return image_parts[0]
-        else:
-            raise Exception("No image generated")
-            
-    except Exception as e:
-        logger.error(f"Gemini image generation error: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Image generation failed: {str(e)}")
-
-def create_image_prompt(character: Character, expression: str) -> str:
-    """キャラクター情報から画像生成用プロンプトを作成"""
-    
-    # 表情の説明を日本語から英語に変換
-    expression_map = {
-        "ニュートラル": "neutral calm expression",
-        "微笑み": "gentle smile, slightly raised mouth corners",
-        "驚き": "surprised expression with wide eyes and slightly open mouth",
-        "困り顔": "troubled expression with worried eyebrows",
-        "むすっ": "pouting expression with furrowed brows"
+    headers = {
+        "Content-Type": "application/json",
     }
     
-    expression_desc = expression_map.get(expression, "neutral expression")
+    payload = {
+        "contents": [
+            {
+                "parts": [
+                    {
+                        "text": prompt
+                    }
+                ]
+            }
+        ]
+    }
     
-    # 髪飾りがある場合のテキスト
-    hair_accessories = f", with {', '.join(character.hair.accessories)}" if character.hair.accessories else ""
-    
-    # 顔の特徴がある場合のテキスト
-    face_marks = f", with {', '.join(character.face.marks)}" if character.face.marks else ""
-    
-    # アクセサリーがある場合のテキスト
-    outfit_accessories = f", wearing {', '.join(character.outfit.accessories)}" if character.outfit.accessories else ""
-    
-    prompt = f"""Create a high-quality anime-style standing character illustration with the following specifications:
+    try:
+        response = requests.post(
+            f"{GEMINI_API_URL}?key={GOOGLE_API_KEY}",
+            headers=headers,
+            json=payload,
+            timeout=30
+        )
+        
+        if response.status_code >= 400:
+            logger.error(f"Gemini API error: {response.status_code} - {response.text}")
+            return prompt  # フォールバック
+        
+        data = response.json()
+        if "candidates" in data and len(data["candidates"]) > 0:
+            return data["candidates"][0]["content"]["parts"][0]["text"]
+        
+        return prompt
+        
+    except Exception as e:
+        logger.error(f"Gemini API error: {str(e)}")
+        return prompt
 
-Character Details:
-- Age appearance: {character.basic.age_appearance}
-- Height: {character.basic.height_cm}cm, {character.basic.build} build
-- Hair: {character.hair.color} colored {character.hair.length} hair, {character.hair.style} style, {character.hair.bangs} bangs{hair_accessories}
-- Eyes: {character.face.eyes_color} colored {character.face.eyes_shape} eyes with {character.face.eyelashes} eyelashes
-- Eyebrows: {character.face.eyebrows}
-- Mouth: {character.face.mouth}
-- Facial features: {face_marks if face_marks else 'none'}
-- Expression: {expression_desc}
-- Outfit: {character.outfit.style}, wearing {character.outfit.top} on top, {character.outfit.bottom} on bottom, {character.outfit.shoes} shoes{outfit_accessories}
-- Personality: {', '.join(character.persona.keywords)}
-- Role: {character.persona.role}
-
-Visual Requirements:
-- Full body standing pose, showing from head to toe
-- Front facing camera angle, no tilt or perspective
-- Arms naturally at sides, relaxed posture
-- Pure white background (#FFFFFF)
-- Clean anime/manga art style with soft colors
-- No shadows, no floor reflection, no background objects
-- High quality, detailed illustration
-- Consistent character design
-
-Style: Japanese anime/manga illustration, soft pastel colors, clean lines, professional quality"""
+def generate_placeholder_images(character: Character) -> List[bytes]:
+    """
+    Google Cloud APIで画像生成する代わりに、一時的にプレースホルダー画像を生成
+    実際のプロダクションでは、Vertex AI の Imagen APIを使用
+    """
+    expressions = [
+        "ニュートラル",
+        "微笑み",
+        "驚き", 
+        "困り顔",
+        "むすっ"
+    ]
     
-    return prompt
+    images = []
+    
+    for i, expression in enumerate(expressions):
+        # 512x768のプレースホルダー画像を作成
+        img = Image.new('RGBA', (512, 768), color=(255, 255, 255, 0))
+        draw = ImageDraw.Draw(img)
+        
+        # 背景
+        draw.rectangle([0, 0, 512, 768], fill=(250, 250, 250, 255))
+        
+        # キャラクター情報を表示
+        y_offset = 50
+        
+        # タイトル
+        draw.text((256, y_offset), f"表情: {expression}", fill=(0, 0, 0), anchor="mt")
+        y_offset += 50
+        
+        # キャラクター情報
+        info_lines = [
+            f"年齢: {character.basic.age_appearance}",
+            f"身長: {character.basic.height_cm}cm",
+            f"髪色: {character.hair.color}",
+            f"髪型: {character.hair.style}",
+            f"目の色: {character.face.eyes_color}",
+            f"服装: {character.outfit.style}",
+            f"性格: {', '.join(character.persona.keywords)}",
+            f"役割: {character.persona.role}"
+        ]
+        
+        for line in info_lines:
+            draw.text((256, y_offset), line, fill=(50, 50, 50), anchor="mt")
+            y_offset += 40
+        
+        # シンプルな顔を描画（表情別）
+        face_y = 400
+        # 顔の輪郭
+        draw.ellipse([206, face_y, 306, face_y+100], outline=(100, 100, 100), width=2)
+        
+        # 目
+        if expression == "驚き":
+            draw.ellipse([225, face_y+30, 245, face_y+50], outline=(0, 0, 0), width=2)
+            draw.ellipse([267, face_y+30, 287, face_y+50], outline=(0, 0, 0), width=2)
+        elif expression == "微笑み":
+            draw.arc([225, face_y+35, 245, face_y+45], start=0, end=180, fill=(0, 0, 0), width=2)
+            draw.arc([267, face_y+35, 287, face_y+45], start=0, end=180, fill=(0, 0, 0), width=2)
+        else:
+            draw.ellipse([230, face_y+35, 240, face_y+45], fill=(0, 0, 0))
+            draw.ellipse([272, face_y+35, 282, face_y+45], fill=(0, 0, 0))
+        
+        # 口
+        if expression == "微笑み":
+            draw.arc([236, face_y+60, 276, face_y+80], start=0, end=180, fill=(0, 0, 0), width=2)
+        elif expression == "驚き":
+            draw.ellipse([246, face_y+65, 266, face_y+80], outline=(0, 0, 0), width=2)
+        elif expression == "困り顔":
+            draw.arc([236, face_y+70, 276, face_y+80], start=180, end=0, fill=(0, 0, 0), width=2)
+        elif expression == "むすっ":
+            draw.line([246, face_y+70, 266, face_y+70], fill=(0, 0, 0), width=2)
+        else:
+            draw.line([246, face_y+70, 266, face_y+70], fill=(0, 0, 0), width=1)
+        
+        # 画像をバイト列に変換
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        images.append(buf.getvalue())
+    
+    return images
+
+def create_detailed_prompt_with_gemini(character: Character, expression: str) -> str:
+    """Geminiを使って詳細なプロンプトを生成"""
+    base_prompt = f"""
+    次のキャラクターの立ち絵画像の詳細なプロンプトを生成してください：
+    
+    キャラクター情報:
+    - 年齢: {character.basic.age_appearance}
+    - 身長: {character.basic.height_cm}cm、体型: {character.basic.build}
+    - 髪: {character.hair.color}の{character.hair.length}、{character.hair.style}
+    - 目: {character.face.eyes_color}の{character.face.eyes_shape}
+    - 服装: {character.outfit.style}
+    - 性格: {', '.join(character.persona.keywords)}
+    - 役割: {character.persona.role}
+    - 表情: {expression}
+    
+    以下の条件で、Stable DiffusionやMidjourneyで使えるような英語のプロンプトを生成してください：
+    - アニメ/マンガスタイル
+    - 全身立ち絵
+    - 白背景
+    - 正面向き
+    - 高品質
+    
+    プロンプトのみを返してください。
+    """
+    
+    return generate_with_gemini(base_prompt)
 
 @app.post("/api/generate")
 async def generate_images(request: GenerateRequest):
     """キャラクター画像を生成するメインエンドポイント"""
     try:
         # APIキーの確認
-        if not GOOGLE_API_KEY or not client:
-            logger.error("GOOGLE_API_KEY is not set or client not initialized")
+        if not GOOGLE_API_KEY:
+            logger.error("GOOGLE_API_KEY is not set")
             raise HTTPException(
                 status_code=500,
                 detail="API key is not configured. Please set GOOGLE_API_KEY environment variable."
@@ -200,31 +267,19 @@ async def generate_images(request: GenerateRequest):
         
         logger.info(f"Generating images for character: {request.character.character_id}")
         
-        # 各表情用の画像を生成
+        # 各表情用のプロンプトを生成（Geminiを使用）
         expressions = ["ニュートラル", "微笑み", "驚き", "困り顔", "むすっ"]
-        images = []
         prompts = []
         
         for expression in expressions:
-            logger.info(f"Generating image for expression: {expression}")
-            
-            # プロンプトを作成
-            prompt = create_image_prompt(request.character, expression)
+            prompt = create_detailed_prompt_with_gemini(request.character, expression)
             prompts.append(prompt)
-            logger.info(f"Created prompt for {expression}: {prompt[:100]}...")
-            
-            # Geminiで画像を生成
-            try:
-                image_bytes = generate_image_with_gemini(prompt)
-                images.append(image_bytes)
-                logger.info(f"Successfully generated image for {expression}")
-            except Exception as e:
-                logger.error(f"Failed to generate image for {expression}: {str(e)}")
-                # エラーが発生した場合、空の画像を追加
-                raise HTTPException(
-                    status_code=500,
-                    detail=f"Failed to generate image for {expression}: {str(e)}"
-                )
+            logger.info(f"Generated prompt for {expression}: {prompt[:100]}...")
+        
+        # 画像生成
+        # 注: 実際のプロダクションでは、ここでVertex AI Imagen APIを呼び出します
+        # 現在はプレースホルダー画像を生成
+        images = generate_placeholder_images(request.character)
         
         logger.info(f"Generated {len(images)} images")
         
