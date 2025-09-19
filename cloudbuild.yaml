@@ -3,7 +3,7 @@
 # Secret Managerからシークレットを利用可能にする
 availableSecrets:
   secretManager:
-    - versionName: projects/$PROJECT_ID/secrets/nanobanana-api-key/versions/latest
+    - versionName: projects/812480532939/secrets/nanobanana-api-key/versions/latest
       env: 'GOOGLE_API_KEY'
 
 steps:

@@ -1,8 +1,9 @@
-fastapi==0.104.1
-uvicorn[standard]==0.24.0
-pydantic==2.5.0
-requests==2.31.0
+fastapi>=0.115.0
+uvicorn[standard]>=0.24.0
+pydantic>=2.5.0
+requests>=2.31.0
 rembg==2.0.52
-pillow==10.1.0
-python-multipart==0.0.6
-google-genai==0.1.0
+pillow>=10.1.0
+python-multipart>=0.0.6
+google-genai>=1.38.0
+anyio>=4.8.0
