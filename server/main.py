@@ -130,46 +130,45 @@ def generate_images_with_vertex_simple(character: SimpleCharacter) -> List[bytes
         for i, prompt in enumerate(prompts):
             logger.info(f"Simple Prompt {i+1} ({['ニュートラル', '照れながら微笑み', '困り顔', 'むすっ'][i]}): {prompt[:200]}...")
         
-        # リクエストボディを構築（4枚生成）
-        request_body = {
-            "instances": [
-                {"prompt": prompts[0]},
-                {"prompt": prompts[1]},
-                {"prompt": prompts[2]},
-                {"prompt": prompts[3]}
-            ],
-            "parameters": {
-                "sampleCount": 1,
-                "aspectRatio": "9:16",
-                "negativePrompt": "low quality, blurry, watermark, text, signature, multiple people, inconsistent character, white background",
-                "seed": character.seed,
-                "addWatermark": False
-            }
-        }
-        
-        # APIリクエストを送信
+        # 各表情ごとに個別のAPIリクエストを送信（Imagen 4.0は1インスタンスのみサポート）
+        images = []
         headers = {
             "Authorization": f"Bearer {access_token}",
             "Content-Type": "application/json"
         }
         
-        response = requests.post(
-            ENDPOINT,
-            headers=headers,
-            json=request_body,
-            timeout=120
-        )
-        
-        if response.status_code != 200:
-            logger.error(f"Vertex AI API error: {response.status_code} - {response.text}")
-            raise Exception(f"API error: {response.status_code} - {response.text}")
-        
-        # レスポンスから画像を取得
-        result = response.json()
-        images = []
-        
-        if "predictions" in result:
-            for i, prediction in enumerate(result["predictions"]):
+        for i, prompt in enumerate(prompts):
+            expression_name = ['ニュートラル', '照れながら微笑み', '困り顔', 'むすっ'][i]
+            logger.info(f"Generating expression {i+1}/4: {expression_name}")
+            
+            # 各表情用のリクエストボディ
+            request_body = {
+                "instances": [{"prompt": prompt}],
+                "parameters": {
+                    "sampleCount": 1,
+                    "aspectRatio": "9:16",
+                    "negativePrompt": "low quality, blurry, watermark, text, signature, multiple people, inconsistent character, white background",
+                    "seed": character.seed + i,  # 各表情で少しずつseedを変える
+                    "addWatermark": False
+                }
+            }
+            
+            response = requests.post(
+                ENDPOINT,
+                headers=headers,
+                json=request_body,
+                timeout=120
+            )
+            
+            if response.status_code != 200:
+                logger.error(f"Vertex AI API error for expression {expression_name}: {response.status_code} - {response.text}")
+                raise Exception(f"API error for {expression_name}: {response.status_code} - {response.text}")
+            
+            # レスポンスから画像を取得
+            result = response.json()
+            
+            if "predictions" in result and len(result["predictions"]) > 0:
+                prediction = result["predictions"][0]
                 if "bytesBase64Encoded" in prediction:
                     image_data = base64.b64decode(prediction["bytesBase64Encoded"])
                     images.append(image_data)
@@ -177,13 +176,14 @@ def generate_images_with_vertex_simple(character: SimpleCharacter) -> List[bytes
                     image_data = base64.b64decode(prediction["image"])
                     images.append(image_data)
                 else:
-                    logger.error(f"No image data in prediction {i}")
-                    
-            if len(images) != 4:
-                logger.warning(f"Expected 4 images, got {len(images)}")
-        else:
-            logger.error(f"No predictions in response: {result}")
-            raise Exception("No predictions in response")
+                    logger.error(f"No image data in prediction for {expression_name}")
+                    raise Exception(f"No image data for {expression_name}")
+            else:
+                logger.error(f"No predictions in response for {expression_name}: {result}")
+                raise Exception(f"No predictions for {expression_name}")
+        
+        if len(images) != 4:
+            logger.warning(f"Expected 4 images, got {len(images)}")
             
         return images
             
@@ -233,47 +233,45 @@ def generate_images_with_vertex(character: Character) -> List[bytes]:
         for i, prompt in enumerate(prompts):
             logger.info(f"Prompt {i+1} ({['ニュートラル', '照れながら微笑み', '困り顔', 'むすっ'][i]}): {prompt}")
         
-        # リクエストボディを構築（4枚生成）
-        request_body = {
-            "instances": [
-                {"prompt": prompts[0]},
-                {"prompt": prompts[1]},
-                {"prompt": prompts[2]},
-                {"prompt": prompts[3]}
-            ],
-            "parameters": {
-                "sampleCount": 1,  # 各プロンプトに対して1枚
-                "aspectRatio": "9:16",  # 立ち絵用の縦長比率
-                "negativePrompt": "low quality, blurry, watermark, text, signature, multiple people, inconsistent character, white background",
-                "seed": character.seed,  # 同じシード値で一貫性を保つ
-                "addWatermark": False
-            }
-        }
-        
-        # APIリクエストを送信
+        # 各表情ごとに個別のAPIリクエストを送信（Imagen 4.0は1インスタンスのみサポート）
+        images = []
         headers = {
             "Authorization": f"Bearer {access_token}",
             "Content-Type": "application/json"
         }
         
-        response = requests.post(
-            ENDPOINT,
-            headers=headers,
-            json=request_body,
-            timeout=120
-        )
-        
-        if response.status_code != 200:
-            logger.error(f"Vertex AI API error: {response.status_code} - {response.text}")
-            raise Exception(f"API error: {response.status_code} - {response.text}")
-        
-        # レスポンスから画像を取得
-        result = response.json()
-        images = []
-        
-        if "predictions" in result:
-            for i, prediction in enumerate(result["predictions"]):
-                # Base64エンコードされた画像データを取得
+        for i, prompt in enumerate(prompts):
+            expression_name = ['ニュートラル', '照れながら微笑み', '困り顔', 'むすっ'][i]
+            logger.info(f"Generating expression {i+1}/4: {expression_name}")
+            
+            # 各表情用のリクエストボディ
+            request_body = {
+                "instances": [{"prompt": prompt}],
+                "parameters": {
+                    "sampleCount": 1,
+                    "aspectRatio": "9:16",
+                    "negativePrompt": "low quality, blurry, watermark, text, signature, multiple people, inconsistent character, white background",
+                    "seed": character.seed + i,  # 各表情で少しずつseedを変える
+                    "addWatermark": False
+                }
+            }
+            
+            response = requests.post(
+                ENDPOINT,
+                headers=headers,
+                json=request_body,
+                timeout=120
+            )
+            
+            if response.status_code != 200:
+                logger.error(f"Vertex AI API error for expression {expression_name}: {response.status_code} - {response.text}")
+                raise Exception(f"API error for {expression_name}: {response.status_code} - {response.text}")
+            
+            # レスポンスから画像を取得
+            result = response.json()
+            
+            if "predictions" in result and len(result["predictions"]) > 0:
+                prediction = result["predictions"][0]
                 if "bytesBase64Encoded" in prediction:
                     image_data = base64.b64decode(prediction["bytesBase64Encoded"])
                     images.append(image_data)
@@ -281,14 +279,15 @@ def generate_images_with_vertex(character: Character) -> List[bytes]:
                     image_data = base64.b64decode(prediction["image"])
                     images.append(image_data)
                 else:
-                    logger.error(f"No image data in prediction {i}")
-                    
-            if len(images) != 4:
-                logger.warning(f"Expected 4 images, got {len(images)}")
-        else:
-            logger.error(f"No predictions in response: {result}")
-            raise Exception("No predictions in response")
-            
+                    logger.error(f"No image data in prediction for {expression_name}")
+                    raise Exception(f"No image data for {expression_name}")
+            else:
+                logger.error(f"No predictions in response for {expression_name}: {result}")
+                raise Exception(f"No predictions for {expression_name}")
+        
+        if len(images) != 4:
+            logger.warning(f"Expected 4 images, got {len(images)}")
+        
         return images
             
     except Exception as e:
@@ -370,8 +369,8 @@ overall gentle, low-contrast illumination.
 目: {character.eyes}
 髪: {character.hair}
 服装: {character.outfit}
-アクセサリー: {character.accessories if character.accessories else "なし"}
-その他の特徴: {character.other_features if character.other_features else "なし"}
+アクセサリー: {getattr(character, 'accessories', '') or "なし"}
+その他の特徴: {getattr(character, 'other_features', '') or "なし"}
 
 【構図・フレーミング（全画像共通・厳守）】
 ショット: 全身。頭から足先まで切れずにフレーム内に収める。左右にわずかな余白を取り、中央に配置。
@@ -391,14 +390,14 @@ overall gentle, low-contrast illumination.
 def create_base_prompt_without_expression(character: Character) -> str:
     """仕様書フォーマットに基づいたプロンプトを作成"""
     
-    # 髪飾りをリスト形式で結合
-    hair_accessories = ", ".join(character.hair.accessories) if character.hair.accessories else "なし"
+    # 髪飾りをリスト形式で結合（安全にアクセス）
+    hair_accessories = ", ".join(getattr(character.hair, 'accessories', [])) if hasattr(character.hair, 'accessories') and getattr(character.hair, 'accessories', None) else "なし"
     
-    # 顔の特徴をリスト形式で結合
-    face_marks = ", ".join(character.face.marks) if character.face.marks else "なし"
+    # 顔の特徴をリスト形式で結合（安全にアクセス）
+    face_marks = ", ".join(getattr(character.face, 'marks', [])) if hasattr(character.face, 'marks') and getattr(character.face, 'marks', None) else "なし"
     
-    # アクセサリーをリスト形式で結合
-    outfit_accessories = ", ".join(character.outfit.accessories) if character.outfit.accessories else "なし"
+    # アクセサリーをリスト形式で結合（安全にアクセス）
+    outfit_accessories = ", ".join(getattr(character.outfit, 'accessories', [])) if hasattr(character.outfit, 'accessories') and getattr(character.outfit, 'accessories', None) else "なし"
     
     prompt = f"""【目的】
 同一キャラクターのラノベ風立ち絵を4枚同時に生成する。
@@ -461,14 +460,17 @@ def create_image_prompt(character: Character, expression: str) -> str:
     
     expression_desc = expression_map.get(expression, "neutral expression")
     
-    # 髪飾りがある場合のテキスト
-    hair_accessories = f", with {', '.join(character.hair.accessories)}" if character.hair.accessories else ""
+    # 髪飾りがある場合のテキスト（安全にアクセス）
+    hair_acc_list = getattr(character.hair, 'accessories', [])
+    hair_accessories = f", with {', '.join(hair_acc_list)}" if hair_acc_list else ""
     
-    # 顔の特徴がある場合のテキスト
-    face_marks = f", with {', '.join(character.face.marks)}" if character.face.marks else ""
+    # 顔の特徴がある場合のテキスト（安全にアクセス）
+    face_marks_list = getattr(character.face, 'marks', [])
+    face_marks = f", with {', '.join(face_marks_list)}" if face_marks_list else ""
     
-    # アクセサリーがある場合のテキスト
-    outfit_accessories = f", wearing {', '.join(character.outfit.accessories)}" if character.outfit.accessories else ""
+    # アクセサリーがある場合のテキスト（安全にアクセス）
+    outfit_acc_list = getattr(character.outfit, 'accessories', [])
+    outfit_accessories = f", wearing {', '.join(outfit_acc_list)}" if outfit_acc_list else ""
     
     prompt = f"""Create a high-quality anime-style standing character illustration with the following specifications:
 

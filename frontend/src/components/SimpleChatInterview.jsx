@@ -38,41 +38,21 @@ function SimpleChatInterview({ characterData, setCharacterData, setGeneratedImag
     setIsGenerating(true)
     setError('')
 
-    // 回答からキャラクターデータを構築
-    const updatedData = { ...characterData }
-    
-    // 基本情報
-    updatedData.basic.age_appearance = allAnswers.age || ''
-    const bodyParts = (allAnswers.body || '').split(/[、,]/)
-    if (bodyParts[0]) {
-      const height = parseInt(bodyParts[0].replace(/[^0-9]/g, ''))
-      if (height) updatedData.basic.height_cm = height
+    // 簡略化されたキャラクターデータを構築
+    const simpleCharacter = {
+      character_id: `char_${Date.now()}`,
+      seed: Math.floor(Math.random() * 1000000),
+      age: allAnswers.age || '20代',
+      body_type: allAnswers.body || 'スレンダー',
+      eyes: allAnswers.eyes || '大きな茶色の瞳',
+      hair: `${allAnswers.hair_basic || '黒のロング'}、${allAnswers.hair_style || 'ストレート'}`,
+      outfit: allAnswers.outfit || 'カジュアルな私服',
+      accessories: '',  // 今回は空
+      other_features: allAnswers.personality ? `性格: ${allAnswers.personality}` : ''
     }
-    if (bodyParts[1]) updatedData.basic.build = bodyParts[1].trim()
 
-    // 髪
-    const hairBasic = (allAnswers.hair_basic || '').split(/[、,]/)
-    if (hairBasic[0]) updatedData.hair.color = hairBasic[0].trim()
-    if (hairBasic[1]) updatedData.hair.length = hairBasic[1].trim()
-    updatedData.hair.style = allAnswers.hair_style || 'ストレート'
-    updatedData.hair.bangs = '自然'
-
-    // 顔
-    const eyes = (allAnswers.eyes || '').split(/[、,]/)
-    if (eyes[0]) updatedData.face.eyes_color = eyes[0].trim()
-    if (eyes[1]) updatedData.face.eyes_shape = eyes[1].trim()
-
-    // 服装
-    updatedData.outfit.style = allAnswers.outfit || ''
-    updatedData.outfit.top = allAnswers.outfit || ''
-    updatedData.outfit.bottom = 'スタンダード'
-    updatedData.outfit.shoes = 'スタンダード'
-
-    // 性格
-    updatedData.persona.keywords = (allAnswers.personality || '').split(/[、,]/).map(k => k.trim())
-    updatedData.persona.role = allAnswers.role || ''
-
-    setCharacterData(updatedData)
+    // 複雑な形式も保持（将来の互換性のため）
+    setCharacterData(simpleCharacter)
 
     // APIコール
     try {
@@ -80,13 +60,13 @@ function SimpleChatInterview({ characterData, setCharacterData, setGeneratedImag
       const apiUrl = import.meta.env.VITE_API_URL || 'https://standing-set-backend-812480532939.asia-northeast1.run.app'
       console.log('Calling API:', apiUrl)
       
-      const response = await fetch(`${apiUrl}/api/generate`, {
+      const response = await fetch(`${apiUrl}/api/generate/simple`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          character: updatedData,
+          character: simpleCharacter,
           return_type: 'base64_list'
         })
       })

@@ -1,0 +1,40 @@
+{
+  "character": {
+    "character_id": "test_char_001",
+    "seed": 123456789,
+    "basic": {
+      "age_appearance": "16歳",
+      "height_cm": 160,
+      "build": "細身"
+    },
+    "hair": {
+      "color": "黒",
+      "length": "ロング",
+      "bangs": "前髪あり",
+      "style": "ストレート",
+      "accessories": []
+    },
+    "face": {
+      "eyes_color": "茶色",
+      "eyes_shape": "丸い",
+      "eyelashes": "普通",
+      "eyebrows": "細い",
+      "mouth": "小さめ",
+      "marks": []
+    },
+    "outfit": {
+      "style": "制服",
+      "top": "白いブラウス",
+      "bottom": "紺のスカート",
+      "accessories": [],
+      "shoes": "ローファー"
+    },
+    "persona": {
+      "keywords": ["優しい", "真面目"],
+      "role": "高校生"
+    },
+    "framing": {},
+    "constraints": {}
+  },
+  "return_type": "base64_list"
+}
