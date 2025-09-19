@@ -126,9 +126,8 @@ def generate_images_with_vertex_simple(character: SimpleCharacter) -> List[bytes
         # 4つのプロンプトを作成（各表情を追加）
         prompts = [f"{base_prompt}\n{expr}" for expr in expressions]
         
-        # デバッグ用：生成されるプロンプトをログに出力
-        for i, prompt in enumerate(prompts):
-            logger.info(f"Simple Prompt {i+1} ({['ニュートラル', '照れながら微笑み', '困り顔', 'むすっ'][i]}): {prompt[:200]}...")
+        # デバッグ用：プロンプトの概要をログに出力
+        logger.info(f"Generated {len(prompts)} prompts, base prompt length: {len(base_prompt)} chars")
         
         # 各表情ごとに個別のAPIリクエストを送信（Imagen 4.0は1インスタンスのみサポート）
         images = []
@@ -142,9 +141,16 @@ def generate_images_with_vertex_simple(character: SimpleCharacter) -> List[bytes
             logger.info(f"Generating expression {i+1}/4: {expression_name}")
             # デバッグ: プロンプトの内容を確認
             logger.info(f"Full prompt length: {len(prompt)} chars")
-            if len(prompt) > 1000:
-                logger.info(f"Prompt contains character info: {'character.age' in prompt}")
-                logger.info(f"Actual age value in prompt: {character.age}")
+            
+            # プロンプト全体を表示（改行で分割して見やすくする）
+            logger.info(f"========== FULL PROMPT FOR {expression_name} ==========")
+            for line in prompt.split('\n'):
+                if line.strip():  # 空行は除外
+                    logger.info(f"PROMPT: {line}")
+            logger.info(f"========== END PROMPT ==========")
+            
+            # キャラクター情報のデバッグ
+            logger.info(f"Character values - age: {character.age}, hair: {character.hair}, outfit: {character.outfit}")
             
             # 各表情用のリクエストボディ
             request_body = {
@@ -343,6 +349,9 @@ def remove_green_background(image_bytes: bytes) -> bytes:
 
 def create_simple_prompt_without_expression(character: SimpleCharacter) -> str:
     """簡略化されたキャラクター情報から仕様書フォーマットのプロンプトを作成"""
+    
+    # デバッグ: 受け取ったキャラクター情報をログ出力
+    logger.info(f"Creating prompt for character: age={character.age}, hair={character.hair}, outfit={character.outfit}")
     
     prompt = f"""【目的】
 同一キャラクターのラノベ風立ち絵を4枚同時に生成する。
