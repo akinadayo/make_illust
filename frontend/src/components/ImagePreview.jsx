@@ -3,8 +3,7 @@ import './ImagePreview.css'
 function ImagePreview({ images }) {
   const expressions = [
     'ニュートラル',
-    '微笑み',
-    '驚き',
+    '照れながら微笑み',
     '困り顔',
     'むすっ'
   ]
