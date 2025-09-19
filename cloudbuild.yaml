@@ -23,10 +23,13 @@ steps:
         echo "=== Checking frontend directory ==="
         ls -la
         ls -la frontend/
+        echo "=== Checking Dockerfile.production content ==="
+        head -20 frontend/Dockerfile.production
         echo "=== Building frontend Docker image ==="
         docker build \
           --progress=plain \
           --no-cache \
+          --pull \
           -t gcr.io/$PROJECT_ID/standing-set-frontend:$COMMIT_SHA \
           -t gcr.io/$PROJECT_ID/standing-set-frontend:latest \
           -f frontend/Dockerfile.production \
@@ -75,7 +78,7 @@ steps:
       - '--min-instances'
       - '0'
       - '--set-env-vars'
-      - 'NANOBANANA_API_KEY=${_NANOBANANA_API_KEY},PORT=8080'
+      - 'NANOBANANA_API_KEY=${_NANOBANANA_API_KEY}'
 
   # Step 6: Get backend URL
   - name: 'gcr.io/cloud-builders/gcloud'
