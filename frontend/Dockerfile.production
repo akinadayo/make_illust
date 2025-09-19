@@ -3,11 +3,14 @@ FROM node:18-alpine as builder
 
 WORKDIR /app
 
-# Copy package files
-COPY package*.json ./
+# Copy package files  
+COPY package.json ./
+# Copy package-lock.json if it exists
+COPY package-lock.json* ./
 
-# Install dependencies
-RUN npm ci --only=production
+# Install ALL dependencies (including devDependencies for build)
+# Use npm install if package-lock.json doesn't exist
+RUN npm install
 
 # Copy application files
 COPY . .
