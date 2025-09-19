@@ -11,8 +11,8 @@ from typing import List, Dict, Any, Optional
 import requests
 from rembg import remove
 from PIL import Image
-import vertexai
-from vertexai.preview.vision_models import ImageGenerationModel
+from google.auth import default
+from google.auth.transport.requests import Request
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -20,17 +20,17 @@ logger = logging.getLogger(__name__)
 
 # Vertex AI設定
 PROJECT_ID = "makeillust"
-LOCATION = "asia-northeast1"  # または "us-central1"
+LOCATION = "us-central1"  # Imagen APIは us-central1 のみサポート
+MODEL_ID = "imagen-4.0-generate-001"
+ENDPOINT = f"https://{LOCATION}-aiplatform.googleapis.com/v1/projects/{PROJECT_ID}/locations/{LOCATION}/publishers/google/models/{MODEL_ID}:predict"
 
-# Vertex AIを初期化
+# 認証情報を取得
+credentials = None
 try:
-    vertexai.init(project=PROJECT_ID, location=LOCATION)
-    # ImageGenerationModelをロード
-    image_model = ImageGenerationModel.from_pretrained("imagegeneration@006")
-    logger.info(f"Vertex AI initialized with project={PROJECT_ID}, location={LOCATION}")
+    credentials, project = default()
+    logger.info(f"Using default credentials for project: {project}")
 except Exception as e:
-    logger.error(f"Failed to initialize Vertex AI: {e}")
-    image_model = None
+    logger.error(f"Failed to get default credentials: {e}")
 
 app = FastAPI(title="Standing-Set-5 API with Google Cloud")
 
@@ -107,39 +107,78 @@ def health_check():
     """ヘルスチェックエンドポイント"""
     return {
         "status": "healthy", 
-        "vertex_ai_configured": bool(image_model),
+        "credentials_configured": bool(credentials),
         "project": PROJECT_ID,
         "location": LOCATION,
+        "model": MODEL_ID,
         "environment": os.getenv("K_SERVICE", "local"),
-        "api_type": "Vertex AI ImageGeneration"
+        "api_type": "Vertex AI Imagen 4.0"
     }
 
 def generate_image_with_vertex(prompt: str) -> bytes:
-    """Vertex AI ImageGenerationModelで画像を生成"""
-    if not image_model:
-        raise HTTPException(status_code=500, detail="Vertex AI not initialized")
+    """Vertex AI Imagen 4.0で画像を生成"""
+    if not credentials:
+        raise HTTPException(status_code=500, detail="Credentials not configured")
     
     try:
-        # Vertex AIで画像を生成
-        response = image_model.generate_images(
-            prompt=prompt,
-            number_of_images=1,
-            language="en",
-            add_watermark=False,
-            aspect_ratio="9:16",  # 立ち絵用の縦長比率
-            safety_filter_level="block_some",
-            person_generation="allow_adult"
+        # アクセストークンを取得
+        if hasattr(credentials, 'refresh'):
+            credentials.refresh(Request())
+        
+        access_token = credentials.token
+        
+        # リクエストボディを構築
+        request_body = {
+            "instances": [
+                {
+                    "prompt": prompt
+                }
+            ],
+            "parameters": {
+                "sampleCount": 1,
+                "aspectRatio": "9:16",  # 立ち絵用の縦長比率
+                "negativePrompt": "low quality, blurry, watermark, text, signature",
+                "addWatermark": False
+            }
+        }
+        
+        # APIリクエストを送信
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json"
+        }
+        
+        response = requests.post(
+            ENDPOINT,
+            headers=headers,
+            json=request_body,
+            timeout=60
         )
         
-        # 生成された画像を取得
-        if response.images:
-            # 画像をバイト列に変換
-            image = response.images[0]
-            buffered = io.BytesIO()
-            image._pil_image.save(buffered, format="PNG")
-            return buffered.getvalue()
+        if response.status_code != 200:
+            logger.error(f"Vertex AI API error: {response.status_code} - {response.text}")
+            raise Exception(f"API error: {response.status_code} - {response.text}")
+        
+        # レスポンスから画像を取得
+        result = response.json()
+        
+        if "predictions" in result and len(result["predictions"]) > 0:
+            prediction = result["predictions"][0]
+            
+            # Base64エンコードされた画像データを取得
+            if "bytesBase64Encoded" in prediction:
+                image_data = base64.b64decode(prediction["bytesBase64Encoded"])
+                return image_data
+            elif "image" in prediction:
+                # imageフィールドがある場合
+                image_data = base64.b64decode(prediction["image"])
+                return image_data
+            else:
+                logger.error(f"Unknown response format: {prediction.keys()}")
+                raise Exception("No image data in response")
         else:
-            raise Exception("No image generated")
+            logger.error(f"No predictions in response: {result}")
+            raise Exception("No predictions in response")
             
     except Exception as e:
         logger.error(f"Vertex AI image generation error: {str(e)}")
@@ -201,12 +240,12 @@ Style: Japanese anime/manga illustration, soft pastel colors, clean lines, profe
 async def generate_images(request: GenerateRequest):
     """キャラクター画像を生成するメインエンドポイント"""
     try:
-        # Vertex AIの初期化確認
-        if not image_model:
-            logger.error("Vertex AI ImageGenerationModel is not initialized")
+        # 認証情報の確認
+        if not credentials:
+            logger.error("Credentials are not configured")
             raise HTTPException(
                 status_code=500,
-                detail="Vertex AI is not configured properly."
+                detail="Authentication is not configured properly."
             )
         
         logger.info(f"Generating images for character: {request.character.character_id}")
