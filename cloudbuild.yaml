@@ -13,18 +13,24 @@ steps:
       - 'Dockerfile.production'
       - '.'
 
-  # Step 2: Build frontend image
+  # Step 2: Build frontend image with detailed logging
   - name: 'gcr.io/cloud-builders/docker'
     id: 'build-frontend'
+    entrypoint: 'bash'
     args:
-      - 'build'
-      - '-t'
-      - 'gcr.io/$PROJECT_ID/standing-set-frontend:$COMMIT_SHA'
-      - '-t'
-      - 'gcr.io/$PROJECT_ID/standing-set-frontend:latest'
-      - '-f'
-      - 'frontend/Dockerfile.production'
-      - './frontend'
+      - '-c'
+      - |
+        echo "=== Checking frontend directory ==="
+        ls -la
+        ls -la frontend/
+        echo "=== Building frontend Docker image ==="
+        docker build \
+          --progress=plain \
+          --no-cache \
+          -t gcr.io/$PROJECT_ID/standing-set-frontend:$COMMIT_SHA \
+          -t gcr.io/$PROJECT_ID/standing-set-frontend:latest \
+          -f frontend/Dockerfile.production \
+          ./frontend
 
   # Step 3: Push backend image
   - name: 'gcr.io/cloud-builders/docker'
