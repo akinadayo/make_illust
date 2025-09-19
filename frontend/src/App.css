@@ -25,29 +25,10 @@
 }
 
 .app-content {
-  max-width: 1400px;
+  max-width: 1200px;
   margin: 0 auto;
   padding: 0 20px;
-  display: flex;
-  gap: 30px;
   min-height: calc(100vh - 140px);
-}
-
-.left-panel {
-  flex: 1;
-  background: white;
-  border-radius: 12px;
-  padding: 25px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-  max-height: calc(100vh - 180px);
-  overflow-y: auto;
-}
-
-.right-panel {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
 }
 
 .generation-message {

@@ -4,58 +4,60 @@ import './ChatInterview.css'
 const questions = [
   {
     id: 'q1',
-    question: 'Q1. 年齢感・身長・体格を教えてください',
-    hint: '例：高校生くらい／160cm／華奢',
-    fields: ['age_appearance', 'height_cm', 'build'],
+    question: 'どんなキャラクターを作りたいですか？年齢感を教えてください',
+    hint: '例：高校生くらい、20代前半、小学生など',
+    fields: ['age_appearance'],
     section: 'basic'
   },
   {
     id: 'q2',
-    question: 'Q2. 髪について教えてください',
-    hint: '色／長さ／前髪／スタイル／アクセサリー',
-    fields: ['color', 'length', 'bangs', 'style', 'accessories'],
-    section: 'hair'
+    question: '身長と体型はどんな感じですか？',
+    hint: '例：160cm、華奢 / 170cm、がっちり',
+    fields: ['height_cm', 'build'],
+    section: 'basic'
   },
   {
     id: 'q3',
-    question: 'Q3. 顔の特徴を教えてください',
-    hint: '目の色／目の形／まつ毛／眉／口／ほくろなどの特徴',
-    fields: ['eyes_color', 'eyes_shape', 'eyelashes', 'eyebrows', 'mouth', 'marks'],
-    section: 'face'
+    question: '髪の色と長さを教えてください',
+    hint: '例：黒髪ロング、茶髪ショート、金髪セミロング',
+    fields: ['color', 'length'],
+    section: 'hair'
   },
   {
     id: 'q4',
-    question: 'Q4. 服装について教えてください',
-    hint: '系統＋具体：上／下／小物／靴',
-    fields: ['style', 'top', 'bottom', 'accessories', 'shoes'],
-    section: 'outfit'
+    question: '髪型の特徴はありますか？',
+    hint: '例：ツインテール、ポニーテール、ぱっつん前髪、ウェーブ',
+    fields: ['bangs', 'style', 'accessories'],
+    section: 'hair'
   },
   {
     id: 'q5',
-    question: 'Q5. 性格3語＋役割を教えてください',
-    hint: '例：おっとり・芯が強い・ドジ／神社で手伝う生徒',
-    fields: ['keywords', 'role'],
-    section: 'persona'
+    question: '目の色と形を教えてください',
+    hint: '例：青い大きな目、茶色のつり目、緑のたれ目',
+    fields: ['eyes_color', 'eyes_shape'],
+    section: 'face'
   },
   {
     id: 'q6',
-    question: 'Q6. 構図について',
-    hint: '全身・正面・直立でよろしいですか？',
-    confirm: true,
-    defaultAnswer: 'はい'
+    question: 'どんな服装にしますか？',
+    hint: '例：制服、カジュアル、和服、ファンタジー衣装',
+    fields: ['style', 'top', 'bottom', 'shoes'],
+    section: 'outfit'
   },
   {
-    id: 'confirm1',
-    question: '確認A）背景は白、他キャラ・小物・文字・武器なしでよろしいですか？',
-    confirm: true,
-    defaultAnswer: 'はい'
+    id: 'q7',
+    question: 'キャラクターの性格を3つの言葉で表すと？',
+    hint: '例：元気、やさしい、ドジっ子',
+    fields: ['keywords'],
+    section: 'persona'
   },
   {
-    id: 'confirm2',
-    question: '確認B）色はペール＆ライトグレイッシュ／輪郭は灰色ラインで統一してよろしいですか？',
-    confirm: true,
-    defaultAnswer: 'はい'
-  }
+    id: 'q8',
+    question: 'このキャラクターの役割や職業は？',
+    hint: '例：学生、冒険者、アイドル、店員さん',
+    fields: ['role'],
+    section: 'persona'
+  },
 ]
 
 function ChatInterview({ characterData, setCharacterData }) {

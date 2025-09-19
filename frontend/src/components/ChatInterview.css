@@ -1,15 +1,16 @@
 .chat-interview {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
+  max-width: 800px;
+  margin: 0 auto;
+  background: white;
+  border-radius: 12px;
+  padding: 25px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
 }
 
-.chat-interview h2 {
-  color: #333;
-  font-size: 20px;
-  margin: 0 0 20px 0;
-  padding-bottom: 15px;
-  border-bottom: 2px solid #e9ecef;
+.chat-container {
+  display: flex;
+  flex-direction: column;
+  height: 600px;
 }
 
 .chat-history {

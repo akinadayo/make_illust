@@ -1,7 +1,6 @@
 import { useState } from 'react'
-import ChatInterview from './components/ChatInterview'
-import JsonPreview from './components/JsonPreview'
-import GenerateButton from './components/GenerateButton'
+import SimpleChatInterview from './components/SimpleChatInterview'
+import ImagePreview from './components/ImagePreview'
 import './App.css'
 
 function App() {
@@ -50,40 +49,28 @@ function App() {
     }
   })
 
+  const [generatedImages, setGeneratedImages] = useState([])
   const [isGenerating, setIsGenerating] = useState(false)
-  const [generationMessage, setGenerationMessage] = useState('')
 
   return (
     <div className="app">
       <header className="app-header">
-        <h1>立ち絵5表情・一括生成アプリ</h1>
-        <p>チャットでキャラクター設定を入力して、5つの表情差分を一括生成</p>
+        <h1>キャラクター立ち絵ジェネレーター</h1>
+        <p>チャットで質問に答えて、5つの表情を一括生成</p>
       </header>
 
       <div className="app-content">
-        <div className="left-panel">
-          <ChatInterview 
-            characterData={characterData}
-            setCharacterData={setCharacterData}
-          />
-        </div>
+        <SimpleChatInterview 
+          characterData={characterData}
+          setCharacterData={setCharacterData}
+          setGeneratedImages={setGeneratedImages}
+          isGenerating={isGenerating}
+          setIsGenerating={setIsGenerating}
+        />
 
-        <div className="right-panel">
-          <JsonPreview characterData={characterData} />
-          
-          <GenerateButton 
-            characterData={characterData}
-            isGenerating={isGenerating}
-            setIsGenerating={setIsGenerating}
-            setGenerationMessage={setGenerationMessage}
-          />
-
-          {generationMessage && (
-            <div className="generation-message">
-              {generationMessage}
-            </div>
-          )}
-        </div>
+        {generatedImages.length > 0 && (
+          <ImagePreview images={generatedImages} />
+        )}
       </div>
     </div>
   )
