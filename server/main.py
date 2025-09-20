@@ -140,17 +140,13 @@ def request_gemini_image(
 
     generation_config: Dict[str, Any] = {
         "temperature": 0.4,
-        "top_p": 0.8,
-        "top_k": 32,
-        "candidate_count": 1,
+        "topP": 0.8,
+        "topK": 32,
+        "candidateCount": 1,
         "seed": seed,
-        "response_mime_type": "image/png",
+        "responseMimeType": "image/png",
+        "responseModalities": response_modalities or ["IMAGE"],
     }
-
-    if response_modalities:
-        generation_config["response_modalities"] = response_modalities
-    else:
-        generation_config["response_modalities"] = ["IMAGE"]
 
     request_body = {
         "contents": [
@@ -159,8 +155,8 @@ def request_gemini_image(
                 "parts": parts,
             }
         ],
-        "generation_config": generation_config,
-        "safety_settings": [
+        "generationConfig": generation_config,
+        "safetySettings": [
             {
                 "category": "HARM_CATEGORY_DANGEROUS",
                 "threshold": "BLOCK_ONLY_HIGH"
