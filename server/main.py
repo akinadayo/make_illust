@@ -13,11 +13,19 @@ import requests
 from rembg import remove
 from PIL import Image
 from google.auth import default
-from google.auth.transport.requests import Request
+try:
+    from google.auth.transport.requests import Request
+except ImportError:
+    # Fallback if google-auth-httplib2 is not installed
+    from google.auth.transport import requests as auth_requests
+    Request = auth_requests.Request
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# 起動ログ
+logger.info("Starting Standing Set Backend Service...")
 
 # Gemini設定 - 環境変数を使わず直接指定
 PROJECT_ID = "812480532939"  # 実際のGCPプロジェクトIDを直接指定
@@ -29,13 +37,16 @@ GENAI_ENDPOINT = (
     f"publishers/google/models/{MODEL_ID}:generateContent"
 )
 
+logger.info(f"Configured endpoint: {GENAI_ENDPOINT}")
+
 # 認証情報を取得
 credentials = None
 try:
     credentials, project = default()
     logger.info(f"Using default credentials for project: {project}")
 except Exception as e:
-    logger.error(f"Failed to get default credentials: {e}")
+    logger.warning(f"Failed to get default credentials on startup (will retry on request): {e}")
+    # 起動時に失敗しても続行
 
 app = FastAPI(title="Standing-Set-5 API with Google Cloud")
 
@@ -90,6 +101,11 @@ class SimpleGenerateRequest(BaseModel):
     mode: str = Field(default="normal", description="生成モード: 'normal' or 'emo'")  # モード追加
     emo_character: Optional[EmoCharacter] = Field(default=None, description="エモモード用キャラクター")
 
+@app.get("/")
+def root():
+    """ルートエンドポイント"""
+    return {"message": "Standing Set Backend Service", "status": "running"}
+
 @app.get("/api/health")
 def health_check():
     """ヘルスチェックエンドポイント"""
@@ -100,6 +116,7 @@ def health_check():
         "location": LOCATION,
         "model": MODEL_ID,
         "environment": os.getenv("K_SERVICE", "local"),
+        "port": os.getenv("PORT", "8080"),
         "api_type": "Vertex AI Gemini 2.5 Flash Image Preview"
     }
 
