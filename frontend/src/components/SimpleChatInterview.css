@@ -4,30 +4,31 @@
   justify-content: center;
   align-items: center;
   padding: 0;
-  background: linear-gradient(135deg, #0a0a1a 0%, #1a1a2e 50%, #0f0f2a 100%);
+  background-color: #0a0a1a;
+  background-image: url('../assets/cyberpunk-bg-mobile.png');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
   overflow: hidden;
   color: #00ffff;
   min-height: 100vh;
   font-family: 'Orbitron', 'Courier New', monospace;
 }
 
-/* Cyberpunk grid background */
+@media (min-aspect-ratio: 4/3) {
+  .chat-interview.chat-interview--simple {
+    background-image: url('../assets/cyberpunk-bg-desktop.png');
+  }
+}
+
+/* Overlay for depth */
 .chat-interview.chat-interview--simple::before {
   content: '';
   position: absolute;
   inset: 0;
-  background-image: 
-    repeating-linear-gradient(0deg, rgba(0, 255, 255, 0.03) 0px, transparent 1px, transparent 2px, rgba(0, 255, 255, 0.03) 3px),
-    repeating-linear-gradient(90deg, rgba(0, 255, 255, 0.03) 0px, transparent 1px, transparent 2px, rgba(0, 255, 255, 0.03) 3px),
-    linear-gradient(180deg, transparent 0%, rgba(0, 255, 255, 0.1) 50%, transparent 100%);
-  background-size: 50px 50px, 50px 50px, 100% 100%;
+  background: linear-gradient(180deg, rgba(10, 10, 26, 0.3) 0%, rgba(10, 10, 26, 0.6) 100%);
   z-index: 0;
-  animation: gridMove 20s linear infinite;
-}
-
-@keyframes gridMove {
-  0% { transform: translate(0, 0); }
-  100% { transform: translate(50px, 50px); }
+  pointer-events: none;
 }
 
 /* Neon glow particles */
@@ -76,12 +77,6 @@
   border-radius: inherit;
   z-index: -1;
   opacity: 0.8;
-  animation: borderRotate 3s linear infinite;
-}
-
-@keyframes borderRotate {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
 }
 
 .chat-interview.chat-interview--simple .chat-messages {
