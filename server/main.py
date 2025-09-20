@@ -96,7 +96,7 @@ class EmoCharacter(BaseModel):
     outfit: str = Field(..., description="服装（例：メイド服、カジュアル）")
 
 class SimpleGenerateRequest(BaseModel):
-    character: SimpleCharacter
+    character: Optional[SimpleCharacter] = Field(default=None, description="通常モード用キャラクター")
     return_type: str = Field(default="base64_list", description="返却形式: 'zip' or 'base64_list'")
     mode: str = Field(default="normal", description="生成モード: 'normal' or 'emo'")  # モード追加
     emo_character: Optional[EmoCharacter] = Field(default=None, description="エモモード用キャラクター")
@@ -928,8 +928,15 @@ async def generate_images_simple(request: SimpleGenerateRequest):
         logger.info(f"PROJECT_ID: {PROJECT_ID}")
         logger.info(f"LOCATION: {LOCATION}")
         logger.info(f"MODEL_ID: {MODEL_ID}")
-        # モードに応じて処理を分岐
-        if request.mode == "emo" and request.emo_character:
+        
+        # モードに応じた入力データのバリデーション
+        if request.mode == "emo":
+            if not request.emo_character:
+                logger.error("Emo mode requires emo_character field")
+                raise HTTPException(
+                    status_code=422,
+                    detail="emo_character is required for emo mode"
+                )
             logger.info(f"Generating emo images for character: {request.emo_character.character_id}")
             
             # エモモード用の画像生成
@@ -948,6 +955,12 @@ async def generate_images_simple(request: SimpleGenerateRequest):
                 )
         else:
             # 通常モード
+            if not request.character:
+                logger.error("Normal mode requires character field")
+                raise HTTPException(
+                    status_code=422,
+                    detail="character is required for normal mode"
+                )
             logger.info(f"Generating images for character: {request.character.character_id}")
             
             # 4つの表情バリエーションを順次生成（簡略化版）
