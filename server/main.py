@@ -147,7 +147,8 @@ def request_gemini_image(
         )
     parts.append({"text": prompt_with_negative})
 
-    effective_modalities = response_modalities if response_modalities else ["IMAGE"]
+    # Gemini 2.5 Flash Image Previewでは TEXT+IMAGE の組み合わせが必要
+    effective_modalities = response_modalities if response_modalities else ["TEXT", "IMAGE"]
 
     generation_config: Dict[str, Any] = {
         "temperature": 0.4,
@@ -156,7 +157,7 @@ def request_gemini_image(
         "candidateCount": 1,
         "seed": seed,
         # "responseMimeType": "image/png",  # Not supported for image generation
-        "responseModalities": effective_modalities,
+        "responseModalities": effective_modalities,  # TEXT+IMAGE が必要
     }
 
     request_body = {
