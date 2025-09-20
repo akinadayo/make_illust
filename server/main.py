@@ -291,7 +291,7 @@ def generate_images_with_vertex_simple(character: SimpleCharacter) -> List[bytes
             credentials.refresh(Request())
             logger.info(f"Token acquired: {bool(getattr(credentials, 'token', None))}")
 
-        negative_prompt = "low quality, blurry, watermark, text, signature, multiple people, inconsistent character, white background"
+        negative_prompt = "low quality, blurry, watermark, text, signature, multiple people, inconsistent character, white background, green outline, green edge, green spill, green fringe, color bleeding"
 
         expressions = [
             ("ニュートラル", """
@@ -368,7 +368,7 @@ def generate_images_with_vertex(character: Character) -> List[bytes]:
         if credentials and hasattr(credentials, 'refresh'):
             credentials.refresh(Request())
 
-        negative_prompt = "low quality, blurry, watermark, text, signature, multiple people, inconsistent character, white background"
+        negative_prompt = "low quality, blurry, watermark, text, signature, multiple people, inconsistent character, white background, green outline, green edge, green spill, green fringe, color bleeding"
 
         expressions = [
             ("ニュートラル", """
@@ -472,7 +472,11 @@ def create_simple_prompt_without_expression(character: SimpleCharacter) -> str:
     prompt = f"""【目的】
 同一キャラクターのラノベ風立ち絵を1枚生成する。
 この画像は指定された表情以外の要素を完全に固定し、画面内には必ず単一のキャラクターのみを描写する。
-背景は完全にビビッドなグリーン#00FF00。質感テクスチャや落ち影は一切入れない。全身が頭からつま先までフレーム内に完全に収まること。
+
+【重要】背景は均一なクロマキーグリーン (pure chroma key green background, RGB(0,255,0), #00FF00)。
+キャラクターの輪郭線は背景から完全に独立し、グリーンのにじみや反射は一切なし。
+Clean edge separation between character and green screen. No green color spill on character.
+質感テクスチャや落ち影は一切入れない。全身が頭からつま先までフレーム内に完全に収まること。
 
 【色調（数値を使わない指定）】
 overall color grading: pale tones, light grayish tones, soft muted pastel tones.
@@ -506,7 +510,9 @@ overall gentle, low-contrast illumination.
 ショット: 全身。頭から足先まで切れずにフレーム内に収める。左右にわずかな余白を取り、中央に配置。
 カメラ: 正面、俯瞰なし、50mm相当の自然なパース。レンズ歪みなし。被写界深度は深く、全身にフォーカス。
 ポーズ: 直立、肩の力みなし、両腕は体側、指先は自然。足元まで見える。足の向きは正面〜やや内振り程度。
-背景: 完全なグリーン (#00FF00)。no texture, no vignette, no gradient, no floor shadow.
+背景: 完全に均一な純粋グリーンスクリーン (RGB: 0, 255, 0 / #00FF00)。
+輪郭線とグリーン背景の境界を明確に分離。エッジにグリーンのにじみなし。
+no texture, no vignette, no gradient, no floor shadow, no green spill on character edges.
 
 【禁止（全画像）】
 背景小物、武器、他キャラ、文字、透かし（watermark）、粒子ノイズ、紙テクスチャ、床影・床反射、過度な光沢、強コントラスト、切れフレーミング。
@@ -544,7 +550,11 @@ def create_base_prompt_without_expression(character: Character) -> str:
     prompt = f"""【目的】
 同一キャラクターのラノベ風立ち絵を1枚生成する。
 この画像は指定された表情以外の要素を完全に固定し、画面内には必ず単一のキャラクターのみを描写する。
-背景は完全にビビッドなグリーン#00FF00。質感テクスチャや落ち影は一切入れない。全身が頭からつま先までフレーム内に完全に収まること。
+
+【重要】背景は均一なクロマキーグリーン (pure chroma key green background, RGB(0,255,0), #00FF00)。
+キャラクターの輪郭線は背景から完全に独立し、グリーンのにじみや反射は一切なし。
+Clean edge separation between character and green screen. No green color spill on character.
+質感テクスチャや落ち影は一切入れない。全身が頭からつま先までフレーム内に完全に収まること。
 
 【色調（数値を使わない指定）】
 overall color grading: pale tones, light grayish tones, soft muted pastel tones.
@@ -577,7 +587,9 @@ overall gentle, low-contrast illumination.
 ショット: 全身。頭から足先まで切れずにフレーム内に収める。左右にわずかな余白を取り、中央に配置。
 カメラ: 正面、俯瞰なし、50mm相当の自然なパース。レンズ歪みなし。被写界深度は深く、全身にフォーカス。
 ポーズ: 直立、肩の力みなし、両腕は体側、指先は自然。足元まで見える。足の向きは正面〜やや内振り程度。
-背景: 完全なグリーン (#00FF00)。no texture, no vignette, no gradient, no floor shadow.
+背景: 完全に均一な純粋グリーンスクリーン (RGB: 0, 255, 0 / #00FF00)。
+輪郭線とグリーン背景の境界を明確に分離。エッジにグリーンのにじみなし。
+no texture, no vignette, no gradient, no floor shadow, no green spill on character edges.
 
 【禁止（全画像）】
 背景小物、武器、他キャラ、文字、透かし（watermark）、粒子ノイズ、紙テクスチャ、床影・床反射、過度な光沢、強コントラスト、切れフレーミング。
