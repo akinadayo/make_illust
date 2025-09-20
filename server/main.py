@@ -147,14 +147,16 @@ def request_gemini_image(
         )
     parts.append({"text": prompt_with_negative})
 
+    effective_modalities = response_modalities if response_modalities else ["IMAGE"]
+
     generation_config: Dict[str, Any] = {
         "temperature": 0.4,
         "topP": 0.8,
         "topK": 32,
         "candidateCount": 1,
         "seed": seed,
-        "responseMimeType": "image/png",
-        "responseModalities": ["IMAGE"],
+        # "responseMimeType": "image/png",  # Not supported for image generation
+        "responseModalities": effective_modalities,
     }
 
     request_body = {
@@ -204,17 +206,54 @@ def request_gemini_image(
     
     if response.status_code != 200:
         logger.error(
-            "Gemini generateContent error: %s - %s",
+            "Gemini generateContent error: %s - Full response: %s",
             response.status_code,
-            response.text[:1000],  # Limit error text to 1000 chars
+            response.text  # Show full error for debugging
         )
         # Try to parse error for more details
         try:
             error_json = response.json()
-            logger.error(f"Error details: {json.dumps(error_json, indent=2, ensure_ascii=False)}")
-        except:
-            pass
-        raise Exception(f"Gemini API error: {response.status_code} - {response.text[:500]}")
+            logger.error(f"Error JSON parsed: {json.dumps(error_json, indent=2, ensure_ascii=False)}")
+            
+            # Check for specific error messages
+            if "error" in error_json:
+                error_msg = error_json.get("error", {})
+                if isinstance(error_msg, dict):
+                    logger.error(f"Error message: {error_msg.get('message', 'No message')}")
+                    logger.error(f"Error code: {error_msg.get('code', 'No code')}")
+                    logger.error(f"Error status: {error_msg.get('status', 'No status')}")
+                    
+                    # Check for specific validation errors
+                    if "Invalid value" in str(error_msg.get('message', '')):
+                        logger.error("Validation error detected - checking request payload")
+                        logger.error(f"Request body was: {json.dumps(request_body, indent=2, ensure_ascii=False)[:2000]}")
+        except Exception as parse_error:
+            logger.error(f"Failed to parse error response: {parse_error}")
+        
+        # Return more specific error based on status code
+        if response.status_code == 400:
+            error_detail = "Bad request to Gemini API. "
+            if "safety_setting" in response.text:
+                error_detail += "Safety settings configuration error. "
+            elif "Invalid value" in response.text:
+                error_detail += "Invalid parameter values in request. "
+            error_detail += response.text[:500]
+            raise HTTPException(status_code=400, detail=error_detail)
+        elif response.status_code == 401:
+            raise HTTPException(
+                status_code=401,
+                detail="Authentication failed. Please check API credentials."
+            )
+        elif response.status_code == 403:
+            raise HTTPException(
+                status_code=403,
+                detail="Permission denied. Please check API permissions and quotas."
+            )
+        else:
+            raise HTTPException(
+                status_code=response.status_code,
+                detail=f"Gemini API error: {response.status_code} - {response.text[:500]}"
+            )
 
     result = response.json()
     for candidate in result.get("candidates", []):
