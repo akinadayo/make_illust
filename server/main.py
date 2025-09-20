@@ -958,12 +958,12 @@ async def generate_images_simple(request: SimpleGenerateRequest):
                 images = generate_images_with_vertex_simple(request.character)
                 logger.info(f"Successfully generated {len(images)} images")
                 skip_background_removal = False
-        except Exception as e:
-            logger.error(f"Failed to generate images: {str(e)}")
-            raise HTTPException(
-                status_code=500,
-                detail=f"Failed to generate images: {str(e)}"
-            )
+            except Exception as e:
+                logger.error(f"Failed to generate images: {str(e)}")
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Failed to generate images: {str(e)}"
+                )
         
         # グリーンバック除去（通常モードのみ）
         if not skip_background_removal:
