@@ -1,206 +1,311 @@
-.chat-interview {
-  max-width: 800px;
-  margin: 0 auto;
-  background: white;
-  border-radius: 12px;
-  padding: 25px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-}
-
-.chat-container {
+.chat-interview.chat-interview--detailed {
+  position: relative;
   display: flex;
   flex-direction: column;
-  height: 600px;
+  gap: clamp(20px, 4vw, 32px);
+  padding: clamp(20px, 4vw, 36px);
+  border-radius: 28px;
+  background-color: #050515;
+  background-image: url('../assets/chat-bg-mobile.png');
+  background-size: cover;
+  background-position: center;
+  color: #e9faff;
+  overflow: hidden;
+  min-height: min(92vh, 860px);
+  box-shadow: 0 24px 60px rgba(3, 7, 33, 0.75);
 }
 
-.chat-history {
-  flex: 1;
-  overflow-y: auto;
-  margin-bottom: 20px;
-  padding-right: 10px;
+@media (min-aspect-ratio: 4/3) {
+  .chat-interview.chat-interview--detailed {
+    background-image: url('../assets/chat-bg-desktop.png');
+    min-height: clamp(720px, 84vh, 980px);
+  }
 }
 
-.chat-item {
-  margin-bottom: 20px;
-  animation: fadeIn 0.3s ease-out;
-}
-
-.chat-question {
-  background: #f0f8ff;
-  color: #2c5282;
-  padding: 12px 15px;
-  border-radius: 8px;
-  font-weight: 500;
-  margin-bottom: 8px;
-}
-
-.chat-answer {
-  background: #f7f7f7;
-  color: #333;
-  padding: 12px 15px;
-  border-radius: 8px;
-  margin-left: 20px;
-  position: relative;
-}
-
-.chat-answer::before {
+.chat-interview.chat-interview--detailed::before {
   content: '';
   position: absolute;
-  left: -10px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 0;
-  height: 0;
-  border-top: 8px solid transparent;
-  border-bottom: 8px solid transparent;
-  border-right: 10px solid #f7f7f7;
+  inset: 0;
+  background: radial-gradient(circle at 25% 20%, rgba(26, 237, 255, 0.25), transparent 45%),
+              radial-gradient(circle at 80% 35%, rgba(255, 102, 255, 0.24), transparent 50%),
+              linear-gradient(140deg, rgba(6, 10, 40, 0.88), rgba(6, 2, 24, 0.85));
+  z-index: 0;
+  mix-blend-mode: screen;
 }
 
-.current-question {
-  border-top: 2px solid #e9ecef;
-  padding-top: 20px;
+.chat-interview.chat-interview--detailed > * {
+  position: relative;
+  z-index: 1;
 }
 
-.question-text {
-  color: #2c5282;
-  font-size: 16px;
-  font-weight: 600;
-  margin-bottom: 8px;
+.chat-interview.chat-interview--detailed h2 {
+  margin: 0;
+  font-size: clamp(22px, 3vw, 30px);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #8ef7ff;
+  text-shadow: 0 0 24px rgba(0, 255, 255, 0.45);
 }
 
-.question-hint {
-  color: #718096;
-  font-size: 13px;
-  margin-bottom: 15px;
-  font-style: italic;
+.chat-interview.chat-interview--detailed .chat-history,
+.chat-interview.chat-interview--detailed .current-question,
+.chat-interview.chat-interview--detailed .interview-complete {
+  background: linear-gradient(135deg, rgba(8, 12, 42, 0.7), rgba(14, 8, 38, 0.72));
+  border: 1px solid rgba(0, 255, 255, 0.18);
+  border-radius: 24px;
+  padding: clamp(18px, 3vw, 28px);
+  backdrop-filter: blur(18px);
+  box-shadow: 0 16px 42px rgba(0, 12, 60, 0.32);
 }
 
-.answer-input-container {
+.chat-interview.chat-interview--detailed .chat-history {
+  max-height: clamp(260px, 45vh, 420px);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(16px, 2vw, 22px);
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 252, 255, 0.4) rgba(0, 15, 38, 0.3);
+}
+
+.chat-interview.chat-interview--detailed .chat-history::-webkit-scrollbar {
+  width: 8px;
+}
+
+.chat-interview.chat-interview--detailed .chat-history::-webkit-scrollbar-track {
+  background: rgba(0, 15, 38, 0.28);
+  border-radius: 999px;
+}
+
+.chat-interview.chat-interview--detailed .chat-history::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(0, 255, 255, 0.65), rgba(255, 102, 255, 0.65));
+  border-radius: 999px;
+}
+
+.chat-interview.chat-interview--detailed .chat-item {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  animation: detailed-fadeIn 0.35s ease forwards;
 }
 
-.answer-input {
-  width: 100%;
-  padding: 12px;
-  border: 2px solid #e2e8f0;
-  border-radius: 8px;
-  font-size: 14px;
-  font-family: inherit;
-  resize: vertical;
-  transition: border-color 0.2s;
+.chat-interview.chat-interview--detailed .chat-question {
+  align-self: flex-start;
+  max-width: 75%;
+  padding: clamp(12px, 1.6vw, 20px) clamp(16px, 2vw, 26px);
+  border-radius: 18px;
+  background: linear-gradient(135deg, rgba(4, 32, 68, 0.78), rgba(12, 10, 38, 0.58));
+  border: 1px solid rgba(0, 255, 255, 0.4);
+  color: #baf6ff;
+  line-height: 1.6;
+  position: relative;
+  box-shadow: 0 0 28px rgba(0, 255, 255, 0.18);
 }
 
-.answer-input:focus {
-  outline: none;
-  border-color: #4299e1;
+.chat-interview.chat-interview--detailed .chat-question::after {
+  content: '';
+  position: absolute;
+  left: clamp(22px, 3vw, 32px);
+  bottom: -6px;
+  width: 16px;
+  height: 16px;
+  background: inherit;
+  transform: rotate(45deg);
+  border-left: 1px solid rgba(0, 255, 255, 0.4);
+  border-bottom: 1px solid rgba(0, 255, 255, 0.4);
 }
 
-.submit-button {
+.chat-interview.chat-interview--detailed .chat-answer {
   align-self: flex-end;
-  padding: 10px 24px;
-  background: #4299e1;
-  color: white;
-  border: none;
-  border-radius: 6px;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s;
+  max-width: 75%;
+  margin-left: auto;
+  padding: clamp(12px, 1.6vw, 20px) clamp(16px, 2vw, 26px);
+  border-radius: 18px;
+  background: linear-gradient(135deg, rgba(50, 14, 66, 0.75), rgba(26, 6, 42, 0.6));
+  border: 1px solid rgba(255, 102, 255, 0.5);
+  color: #ffe4ff;
+  line-height: 1.6;
+  position: relative;
+  box-shadow: 0 0 28px rgba(255, 102, 255, 0.16);
 }
 
-.submit-button:hover {
-  background: #3182ce;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 8px rgba(66, 153, 225, 0.3);
+.chat-interview.chat-interview--detailed .chat-answer::after {
+  content: '';
+  position: absolute;
+  right: clamp(22px, 3vw, 32px);
+  bottom: -6px;
+  width: 16px;
+  height: 16px;
+  background: inherit;
+  transform: rotate(45deg);
+  border-right: 1px solid rgba(255, 102, 255, 0.5);
+  border-bottom: 1px solid rgba(255, 102, 255, 0.5);
 }
 
-.submit-button:active {
-  transform: translateY(0);
-}
-
-.confirm-buttons {
+.chat-interview.chat-interview--detailed .current-question {
   display: flex;
-  gap: 15px;
+  flex-direction: column;
+  gap: clamp(12px, 2vw, 18px);
+}
+
+.chat-interview.chat-interview--detailed .question-text {
+  font-size: clamp(16px, 2vw, 18px);
+  font-weight: 600;
+  color: #95f0ff;
+  letter-spacing: 0.02em;
+}
+
+.chat-interview.chat-interview--detailed .question-hint {
+  font-size: clamp(13px, 1.6vw, 15px);
+  color: rgba(183, 216, 255, 0.68);
+  font-style: italic;
+}
+
+.chat-interview.chat-interview--detailed .answer-input-container {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(12px, 2vw, 18px);
+}
+
+.chat-interview.chat-interview--detailed .answer-input {
+  width: 100%;
+  min-height: clamp(110px, 10vw, 140px);
+  padding: clamp(14px, 2vw, 18px);
+  border-radius: 16px;
+  border: 1px solid rgba(0, 255, 255, 0.3);
+  background: rgba(4, 12, 32, 0.6);
+  color: #e5fbff;
+  font-size: clamp(14px, 1.6vw, 16px);
+  line-height: 1.7;
+  font-family: 'Fira Code', 'Courier New', monospace;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  resize: vertical;
+}
+
+.chat-interview.chat-interview--detailed .answer-input::placeholder {
+  color: rgba(180, 220, 255, 0.45);
+}
+
+.chat-interview.chat-interview--detailed .answer-input:focus {
+  outline: none;
+  border-color: rgba(0, 255, 255, 0.6);
+  box-shadow: 0 0 22px rgba(0, 255, 255, 0.3);
+}
+
+.chat-interview.chat-interview--detailed .submit-button,
+.chat-interview.chat-interview--detailed .confirm-yes,
+.chat-interview.chat-interview--detailed .confirm-no,
+.chat-interview.chat-interview--detailed .reset-button {
+  position: relative;
+  padding: clamp(12px, 1.6vw, 18px) clamp(20px, 3vw, 32px);
+  border-radius: 14px;
+  border: 1px solid rgba(0, 255, 255, 0.32);
+  background: linear-gradient(135deg, rgba(0, 128, 255, 0.75), rgba(255, 0, 200, 0.7));
+  color: white;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: 0 16px 30px rgba(0, 128, 255, 0.3);
+}
+
+.chat-interview.chat-interview--detailed .submit-button:hover,
+.chat-interview.chat-interview--detailed .confirm-yes:hover,
+.chat-interview.chat-interview--detailed .confirm-no:hover,
+.chat-interview.chat-interview--detailed .reset-button:hover {
+  transform: translateY(-1px) scale(1.01);
+  box-shadow: 0 18px 36px rgba(0, 200, 255, 0.32);
+}
+
+.chat-interview.chat-interview--detailed .submit-button:active,
+.chat-interview.chat-interview--detailed .confirm-yes:active,
+.chat-interview.chat-interview--detailed .confirm-no:active,
+.chat-interview.chat-interview--detailed .reset-button:active {
+  transform: translateY(0) scale(0.99);
+}
+
+.chat-interview.chat-interview--detailed .submit-button {
+  align-self: flex-end;
+  background: linear-gradient(135deg, rgba(0, 180, 255, 0.82), rgba(120, 0, 255, 0.75));
+}
+
+.chat-interview.chat-interview--detailed .confirm-buttons {
+  display: flex;
+  gap: clamp(14px, 2.4vw, 24px);
   justify-content: center;
-  margin-top: 10px;
+  flex-wrap: wrap;
 }
 
-.confirm-yes,
-.confirm-no {
-  padding: 12px 36px;
-  border: none;
-  border-radius: 6px;
-  font-size: 15px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s;
+.chat-interview.chat-interview--detailed .confirm-yes {
+  background: linear-gradient(135deg, rgba(0, 210, 150, 0.85), rgba(0, 160, 255, 0.78));
 }
 
-.confirm-yes {
-  background: #48bb78;
-  color: white;
+.chat-interview.chat-interview--detailed .confirm-no {
+  background: linear-gradient(135deg, rgba(255, 90, 140, 0.8), rgba(255, 150, 200, 0.75));
+  border-color: rgba(255, 140, 200, 0.35);
 }
 
-.confirm-yes:hover {
-  background: #38a169;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 8px rgba(72, 187, 120, 0.3);
-}
-
-.confirm-no {
-  background: #f7fafc;
-  color: #4a5568;
-  border: 2px solid #cbd5e0;
-}
-
-.confirm-no:hover {
-  background: #edf2f7;
-  border-color: #a0aec0;
-  transform: translateY(-1px);
-}
-
-.interview-complete {
+.chat-interview.chat-interview--detailed .interview-complete {
   text-align: center;
-  padding: 40px 20px;
-  background: #f0fff4;
-  border-radius: 12px;
-  border: 2px solid #9ae6b4;
+  color: #b9ffdd;
+  border-color: rgba(102, 255, 204, 0.35);
+  background: linear-gradient(135deg, rgba(8, 52, 52, 0.6), rgba(12, 28, 48, 0.7));
 }
 
-.interview-complete p {
-  color: #276749;
-  font-size: 16px;
-  margin-bottom: 20px;
-  font-weight: 500;
+.chat-interview.chat-interview--detailed .interview-complete p {
+  margin-bottom: clamp(16px, 2.6vw, 24px);
+  font-size: clamp(15px, 2vw, 18px);
 }
 
-.reset-button {
-  padding: 10px 24px;
-  background: #718096;
-  color: white;
-  border: none;
-  border-radius: 6px;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s;
+.chat-interview.chat-interview--detailed .reset-button {
+  background: linear-gradient(135deg, rgba(104, 76, 255, 0.8), rgba(0, 208, 255, 0.7));
+  border-color: rgba(140, 160, 255, 0.32);
 }
 
-.reset-button:hover {
-  background: #4a5568;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 8px rgba(113, 128, 150, 0.3);
-}
-
-@keyframes fadeIn {
+@keyframes detailed-fadeIn {
   from {
     opacity: 0;
-    transform: translateY(10px);
+    transform: translateY(14px);
   }
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@media (max-width: 768px) {
+  .chat-interview.chat-interview--detailed {
+    padding: clamp(16px, 5vw, 24px);
+    border-radius: 20px;
+  }
+
+  .chat-interview.chat-interview--detailed .chat-history,
+  .chat-interview.chat-interview--detailed .current-question,
+  .chat-interview.chat-interview--detailed .interview-complete {
+    border-radius: 18px;
+  }
+
+  .chat-interview.chat-interview--detailed .chat-question,
+  .chat-interview.chat-interview--detailed .chat-answer {
+    max-width: 92%;
+  }
+}
+
+@media (max-width: 520px) {
+  .chat-interview.chat-interview--detailed {
+    border-radius: 16px;
+    padding: 14px;
+  }
+
+  .chat-interview.chat-interview--detailed h2 {
+    letter-spacing: 0.05em;
+  }
+
+  .chat-interview.chat-interview--detailed .submit-button,
+  .chat-interview.chat-interview--detailed .reset-button,
+  .chat-interview.chat-interview--detailed .confirm-yes,
+  .chat-interview.chat-interview--detailed .confirm-no {
+    width: 100%;
   }
 }

@@ -18,8 +18,8 @@ from google.auth.transport.requests import Request
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Gemini設定
-PROJECT_ID = os.getenv("GOOGLE_PROJECT_ID", "makeillust")
+# Gemini設定 - 環境変数を使わず直接指定
+PROJECT_ID = "makeillust"  # プロジェクトIDを直接指定
 LOCATION = "global"
 MODEL_ID = "gemini-2.5-flash-image-preview"
 

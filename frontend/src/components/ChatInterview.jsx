@@ -155,7 +155,7 @@ function ChatInterview({ characterData, setCharacterData }) {
   }
 
   return (
-    <div className="chat-interview">
+    <div className="chat-interview chat-interview--detailed">
       <h2>キャラクター設定インタビュー</h2>
       
       <div className="chat-history">

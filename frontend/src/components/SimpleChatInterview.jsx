@@ -100,7 +100,7 @@ function SimpleChatInterview({ characterData, setCharacterData, setGeneratedImag
   }
 
   return (
-    <div className="chat-interview">
+    <div className="chat-interview chat-interview--simple">
       <div className="chat-container">
         <div className="chat-messages">
           {Object.keys(answers).map((field, idx) => (

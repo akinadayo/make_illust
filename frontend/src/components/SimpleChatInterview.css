@@ -1,224 +1,253 @@
-/* コンテナの基本スタイル */
-.simple-chat-container {
-  max-width: 90vw;
-  width: 100%;
-  max-width: 800px;
-  margin: 0 auto;
-  padding: 20px;
-  background: white;
-  border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  height: 80vh;
+.chat-interview.chat-interview--simple {
+  position: relative;
   display: flex;
-  flex-direction: column;
+  justify-content: center;
+  align-items: stretch;
+  padding: clamp(16px, 4vw, 28px);
+  border-radius: 28px;
+  background-color: #050515;
+  background-image: url('../assets/chat-bg-mobile.png');
+  background-size: cover;
+  background-position: center;
+  overflow: hidden;
+  color: #e9faff;
+  box-shadow: 0 24px 60px rgba(3, 7, 33, 0.75);
+  min-height: min(92vh, 820px);
+  transition: background-image 0.3s ease;
 }
 
-.chat-messages {
+@media (min-aspect-ratio: 4/3) {
+  .chat-interview.chat-interview--simple {
+    background-image: url('../assets/chat-bg-desktop.png');
+    min-height: clamp(680px, 82vh, 920px);
+  }
+}
+
+.chat-interview.chat-interview--simple::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 20% 20%, rgba(28, 247, 255, 0.28), transparent 45%),
+              radial-gradient(circle at 80% 30%, rgba(255, 88, 214, 0.25), transparent 48%),
+              linear-gradient(135deg, rgba(6, 10, 40, 0.9), rgba(6, 2, 24, 0.85));
+  z-index: 0;
+  mix-blend-mode: screen;
+}
+
+.chat-interview.chat-interview--simple .chat-container {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(18px, 3vw, 24px);
+  width: min(720px, 100%);
+  border-radius: 24px;
+  padding: clamp(18px, 3vw, 28px);
+  background: linear-gradient(135deg, rgba(8, 12, 42, 0.68), rgba(12, 6, 32, 0.72));
+  border: 1px solid rgba(0, 240, 255, 0.16);
+  backdrop-filter: blur(18px);
+  box-shadow: 0 18px 45px rgba(0, 12, 60, 0.35);
+}
+
+.chat-interview.chat-interview--simple .chat-messages {
   flex: 1;
   overflow-y: auto;
-  padding: 20px;
+  padding: clamp(8px, 1.5vw, 16px);
   display: flex;
   flex-direction: column;
-  gap: 15px;
+  gap: clamp(14px, 2vw, 22px);
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 252, 255, 0.4) rgba(0, 15, 38, 0.3);
 }
 
-.message-pair {
+.chat-interview.chat-interview--simple .chat-messages::-webkit-scrollbar {
+  width: 8px;
+}
+
+.chat-interview.chat-interview--simple .chat-messages::-webkit-scrollbar-track {
+  background: rgba(0, 15, 38, 0.25);
+  border-radius: 999px;
+}
+
+.chat-interview.chat-interview--simple .chat-messages::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(0, 255, 255, 0.65), rgba(255, 102, 255, 0.65));
+  border-radius: 999px;
+}
+
+.chat-interview.chat-interview--simple .message-pair {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: clamp(10px, 1.5vw, 14px);
 }
 
-.message {
-  padding: 12px 16px;
-  border-radius: 12px;
-  max-width: 70%;
+.chat-interview.chat-interview--simple .message {
+  position: relative;
+  padding: clamp(12px, 1.6vw, 20px) clamp(16px, 2vw, 28px);
+  border-radius: 18px;
+  max-width: min(68%, 520px);
   word-wrap: break-word;
-  animation: fadeIn 0.3s ease-in;
+  background: rgba(12, 20, 48, 0.58);
+  border: 1px solid rgba(0, 255, 255, 0.28);
+  box-shadow: 0 0 28px rgba(0, 255, 255, 0.12);
+  font-size: clamp(14px, 1.4vw, 16px);
+  line-height: 1.6;
+  backdrop-filter: blur(6px);
+  animation: simple-fadeInUp 0.35s ease forwards;
 }
 
-.message.bot {
-  background: #f0f8ff;
-  color: #2c5282;
+.chat-interview.chat-interview--simple .message::after {
+  content: '';
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  bottom: -6px;
+  background: inherit;
+  transform: rotate(45deg);
+  border-bottom: inherit;
+  border-right: inherit;
+  box-shadow: 8px 8px 16px rgba(0, 0, 0, 0.18);
+}
+
+.chat-interview.chat-interview--simple .message.bot {
   align-self: flex-start;
+  color: #a8f6ff;
+  border-color: rgba(0, 255, 255, 0.45);
+  background: linear-gradient(135deg, rgba(4, 32, 68, 0.78), rgba(12, 10, 38, 0.58));
+  box-shadow: 0 0 32px rgba(0, 255, 255, 0.18);
 }
 
-.message.user {
-  background: #4299e1;
-  color: white;
+.chat-interview.chat-interview--simple .message.bot::after {
+  left: clamp(22px, 3vw, 32px);
+  border-left: 1px solid rgba(0, 255, 255, 0.45);
+  border-bottom: 1px solid rgba(0, 255, 255, 0.45);
+}
+
+.chat-interview.chat-interview--simple .message.user {
   align-self: flex-end;
+  color: #ffe7ff;
+  border-color: rgba(255, 102, 255, 0.5);
+  background: linear-gradient(135deg, rgba(50, 14, 66, 0.75), rgba(26, 6, 42, 0.6));
+  box-shadow: 0 0 32px rgba(255, 102, 255, 0.16);
 }
 
-.message.current {
-  animation: pulse 1.5s infinite;
+.chat-interview.chat-interview--simple .message.user::after {
+  right: clamp(22px, 3vw, 32px);
+  border-right: 1px solid rgba(255, 102, 255, 0.5);
+  border-bottom: 1px solid rgba(255, 102, 255, 0.5);
 }
 
-.message.error {
-  background: #fff5f5;
-  color: #c53030;
-  border: 1px solid #feb2b2;
+.chat-interview.chat-interview--simple .message.current {
+  animation: simple-neonPulse 1.6s ease-in-out infinite;
+}
+
+.chat-interview.chat-interview--simple .message.error {
   align-self: center;
+  background: rgba(255, 72, 99, 0.12);
+  border: 1px solid rgba(255, 120, 120, 0.45);
+  color: #ffb7b7;
   max-width: 90%;
   text-align: center;
+  box-shadow: 0 0 26px rgba(255, 96, 120, 0.18);
 }
 
-.input-area {
-  padding: 20px;
-  border-top: 1px solid #e2e8f0;
+.chat-interview.chat-interview--simple .message.error::after {
+  display: none;
+}
+
+.chat-interview.chat-interview--simple .input-area {
   display: flex;
-  gap: 10px;
+  gap: clamp(10px, 2vw, 18px);
+  padding: clamp(12px, 2vw, 18px);
+  border-radius: 16px;
+  border: 1px solid rgba(0, 255, 255, 0.2);
+  background: rgba(5, 12, 36, 0.45);
+  backdrop-filter: blur(10px);
+  box-shadow: inset 0 0 18px rgba(0, 255, 255, 0.08);
 }
 
-.chat-input {
+.chat-interview.chat-interview--simple .chat-input {
   flex: 1;
-  padding: 12px;
-  border: 2px solid #e2e8f0;
-  border-radius: 8px;
-  font-size: 14px;
-  transition: border-color 0.2s;
+  padding: clamp(12px, 1.5vw, 18px);
+  border-radius: 12px;
+  border: 1px solid rgba(0, 255, 255, 0.28);
+  background: rgba(2, 8, 26, 0.6);
+  color: #e5fbff;
+  font-size: clamp(14px, 1.4vw, 16px);
+  font-family: 'Fira Code', 'Courier New', monospace;
+  transition: border 0.2s ease, box-shadow 0.2s ease;
 }
 
-.chat-input:focus {
+.chat-interview.chat-interview--simple .chat-input::placeholder {
+  color: rgba(180, 220, 255, 0.4);
+}
+
+.chat-interview.chat-interview--simple .chat-input:focus {
   outline: none;
-  border-color: #4299e1;
+  border-color: rgba(0, 255, 255, 0.6);
+  box-shadow: 0 0 22px rgba(0, 255, 255, 0.3);
 }
 
-.send-button {
-  padding: 12px 24px;
-  background: #4299e1;
+.chat-interview.chat-interview--simple .send-button,
+.chat-interview.chat-interview--simple .restart-button,
+.chat-interview.chat-interview--simple .retry-button {
+  position: relative;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  padding: clamp(12px, 1.5vw, 18px) clamp(18px, 2.8vw, 30px);
+  border-radius: 12px;
+  border: 1px solid rgba(0, 255, 255, 0.32);
+  background: linear-gradient(135deg, rgba(0, 128, 255, 0.75), rgba(255, 0, 200, 0.7));
   color: white;
-  border: none;
-  border-radius: 8px;
-  font-weight: 500;
+  font-weight: 600;
+  letter-spacing: 0.02em;
   cursor: pointer;
-  transition: all 0.2s;
-  white-space: nowrap;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  min-width: clamp(120px, 18vw, 180px);
+  box-shadow: 0 12px 24px rgba(0, 122, 255, 0.3);
 }
 
-.send-button:hover {
-  background: #3182ce;
-  transform: translateY(-1px);
+.chat-interview.chat-interview--simple .send-button:hover,
+.chat-interview.chat-interview--simple .restart-button:hover,
+.chat-interview.chat-interview--simple .retry-button:hover {
+  transform: translateY(-1px) scale(1.01);
+  box-shadow: 0 16px 32px rgba(0, 180, 255, 0.32);
 }
 
-.send-button:disabled {
-  background: #cbd5e0;
+.chat-interview.chat-interview--simple .send-button:active,
+.chat-interview.chat-interview--simple .restart-button:active,
+.chat-interview.chat-interview--simple .retry-button:active {
+  transform: translateY(0) scale(0.99);
+}
+
+.chat-interview.chat-interview--simple .send-button:disabled {
+  opacity: 0.6;
   cursor: not-allowed;
-  transform: none;
+  box-shadow: none;
 }
 
-.restart-button {
-  margin: 20px auto;
-  padding: 12px 24px;
-  background: #718096;
-  color: white;
-  border: none;
-  border-radius: 8px;
-  font-weight: 500;
-  cursor: pointer;
-  display: block;
+.chat-interview.chat-interview--simple .restart-button {
+  align-self: center;
+  margin-top: clamp(12px, 2vw, 20px);
+  background: linear-gradient(135deg, rgba(104, 76, 255, 0.8), rgba(0, 208, 255, 0.7));
 }
 
-.retry-button {
-  margin-top: 10px;
-  padding: 8px 16px;
-  background: #e53e3e;
-  color: white;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 14px;
+.chat-interview.chat-interview--simple .retry-button {
+  margin-top: 14px;
+  min-width: unset;
+  padding: clamp(10px, 1.2vw, 14px) clamp(16px, 2vw, 24px);
+  background: linear-gradient(135deg, rgba(255, 64, 128, 0.8), rgba(255, 140, 160, 0.7));
 }
 
-/* タブレット対応 */
-@media (max-width: 768px) {
-  .simple-chat-container {
-    padding: 15px;
-    height: 85vh;
-    border-radius: 8px;
-  }
-
-  .chat-messages {
-    padding: 15px;
-    gap: 12px;
-  }
-
-  .message {
-    max-width: 85%;
-    padding: 10px 14px;
-    font-size: 14px;
-  }
-
-  .input-area {
-    padding: 15px;
-    gap: 8px;
-  }
-
-  .chat-input {
-    padding: 10px;
-    font-size: 14px;
-  }
-
-  .send-button {
-    padding: 10px 20px;
-    font-size: 14px;
-  }
+.chat-interview.chat-interview--simple .message.error .retry-button {
+  border-color: rgba(255, 178, 178, 0.6);
 }
 
-/* スマートフォン対応 */
-@media (max-width: 480px) {
-  .simple-chat-container {
-    padding: 10px;
-    height: 90vh;
-    border-radius: 0;
-    max-width: 100vw;
-  }
-
-  .chat-messages {
-    padding: 10px;
-    gap: 10px;
-  }
-
-  .message {
-    max-width: 90%;
-    padding: 8px 12px;
-    font-size: 13px;
-  }
-
-  .input-area {
-    padding: 10px;
-    gap: 5px;
-    flex-direction: column;
-  }
-
-  .chat-input {
-    padding: 10px;
-    font-size: 13px;
-    width: 100%;
-  }
-
-  .send-button {
-    padding: 12px;
-    width: 100%;
-    font-size: 14px;
-  }
-
-  .restart-button {
-    padding: 10px 20px;
-    font-size: 14px;
-  }
-}
-
-/* 大画面対応 */
-@media (min-width: 1200px) {
-  .simple-chat-container {
-    max-width: 900px;
-  }
-}
-
-/* アニメーション */
-@keyframes fadeIn {
+@keyframes simple-fadeInUp {
   from {
     opacity: 0;
-    transform: translateY(10px);
+    transform: translateY(18px);
   }
   to {
     opacity: 1;
@@ -226,11 +255,65 @@
   }
 }
 
-@keyframes pulse {
+@keyframes simple-neonPulse {
   0%, 100% {
-    opacity: 1;
+    box-shadow: 0 0 22px rgba(0, 255, 255, 0.3);
+    border-color: rgba(0, 255, 255, 0.6);
   }
   50% {
-    opacity: 0.7;
+    box-shadow: 0 0 32px rgba(255, 102, 255, 0.4);
+    border-color: rgba(255, 102, 255, 0.48);
+  }
+}
+
+@media (max-width: 768px) {
+  .chat-interview.chat-interview--simple {
+    border-radius: 18px;
+    padding: clamp(12px, 4vw, 18px);
+  }
+
+  .chat-interview.chat-interview--simple .chat-container {
+    padding: clamp(14px, 4vw, 22px);
+  }
+
+  .chat-interview.chat-interview--simple .message {
+    max-width: 92%;
+  }
+
+  .chat-interview.chat-interview--simple .input-area {
+    flex-direction: column;
+  }
+
+  .chat-interview.chat-interview--simple .send-button {
+    width: 100%;
+  }
+}
+
+@media (max-width: 520px) {
+  .chat-interview.chat-interview--simple {
+    border-radius: 16px;
+    padding: 10px;
+  }
+
+  .chat-interview.chat-interview--simple .chat-container {
+    padding: 14px;
+    border-radius: 18px;
+  }
+
+  .chat-interview.chat-interview--simple .message {
+    font-size: 13px;
+    padding: 12px 16px;
+  }
+
+  .chat-interview.chat-interview--simple .message::after {
+    width: 14px;
+    height: 14px;
+    bottom: -5px;
+  }
+
+  .chat-interview.chat-interview--simple .send-button,
+  .chat-interview.chat-interview--simple .restart-button,
+  .chat-interview.chat-interview--simple .retry-button {
+    min-width: 100%;
   }
 }
