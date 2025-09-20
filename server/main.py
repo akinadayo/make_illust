@@ -257,14 +257,24 @@ def request_gemini_image(
             )
 
     result = response.json()
+    logger.info(f"Gemini response structure: candidates={len(result.get('candidates', []))}")
+    
     for candidate in result.get("candidates", []):
         parts = candidate.get("content", {}).get("parts", [])
+        logger.info(f"Parts in candidate: {len(parts)}")
+        
         for part in parts:
-            data = part.get("inline_data")
-            if data and data.get("mime_type", "").startswith("image"):
+            # Gemini API uses camelCase: inlineData, not inline_data
+            data = part.get("inlineData") or part.get("inline_data")  # Check both for compatibility
+            if data and data.get("mimeType", "").startswith("image"):
+                logger.info("Found image in response")
+                return base64.b64decode(data["data"])
+            elif data and data.get("mime_type", "").startswith("image"):
+                logger.info("Found image in response (snake_case)")
                 return base64.b64decode(data["data"])
 
-    raise Exception(f"Unexpected Gemini response: {result}")
+    logger.error(f"No image found in Gemini response. Full response: {json.dumps(result, indent=2)[:1000]}")
+    raise Exception(f"No image found in Gemini response")
 
 def generate_images_with_vertex_simple(character: SimpleCharacter) -> List[bytes]:
     """簡略化されたキャラクター情報で表情差分ごとに1枚ずつ生成"""
