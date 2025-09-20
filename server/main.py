@@ -437,31 +437,75 @@ def generate_images_with_vertex(character: Character) -> List[bytes]:
         raise HTTPException(status_code=500, detail=f"Image generation failed: {str(e)}")
 
 def remove_green_background(image_bytes: bytes) -> bytes:
-    """グリーンバックを透明にする"""
+    """グリーンバックを透明にする - エッジのモヤを除去"""
     try:
-        # rembgで背景を除去（透過PNGを返す）
-        return remove(image_bytes)
-    except Exception as primary_error:
-        logger.warning(f"rembg removal failed, falling back to manual threshold: {primary_error}")
+        # Step 1: rembgで初期背景除去
+        logger.info("Starting rembg background removal")
+        removed = remove(image_bytes, alpha_matting=True, alpha_matting_foreground_threshold=240, alpha_matting_background_threshold=50)
+        
+        # Step 2: PILで追加のクリーンアップ処理
+        img = Image.open(io.BytesIO(removed)).convert("RGBA")
+        width, height = img.size
+        pixels = img.load()
+        
+        # エッジのグリーンアーティファクトを除去
+        for y in range(height):
+            for x in range(width):
+                r, g, b, a = pixels[x, y]
+                
+                # 半透明部分のグリーン成分を調整
+                if 0 < a < 255:
+                    # グリーン優勢なピクセルを検出
+                    if g > r * 1.2 and g > b * 1.2:
+                        # グリーンを減衰させる
+                        new_g = int((r + b) / 2)
+                        pixels[x, y] = (r, new_g, b, a)
+                    
+                    # 透明度が低い場合は完全に透明にする
+                    if a < 30:
+                        pixels[x, y] = (r, g, b, 0)
+                    # 透明度が高い場合は完全に不透明にする
+                    elif a > 225:
+                        pixels[x, y] = (r, g, b, 255)
+                
+                # 完全に不透明なグリーンっぽいピクセルもチェック
+                elif a == 255:
+                    # 明らかなグリーンエッジを検出
+                    if g > r * 1.5 and g > b * 1.5 and g > 150:
+                        # 隣接ピクセルをチェックして、エッジかどうか判定
+                        is_edge = False
+                        for dx in [-1, 0, 1]:
+                            for dy in [-1, 0, 1]:
+                                if dx == 0 and dy == 0:
+                                    continue
+                                nx, ny = x + dx, y + dy
+                                if 0 <= nx < width and 0 <= ny < height:
+                                    _, _, _, na = pixels[nx, ny]
+                                    if na < 255:
+                                        is_edge = True
+                                        break
+                            if is_edge:
+                                break
+                        
+                        # エッジのグリーンを調整
+                        if is_edge:
+                            new_g = int((r + b) / 2)
+                            pixels[x, y] = (r, new_g, b, a)
+        
+        # Step 3: 結果を保存
+        buffer = io.BytesIO()
+        img.save(buffer, format="PNG", optimize=True)
+        return buffer.getvalue()
+        
+    except Exception as e:
+        logger.error(f"Enhanced background removal failed: {e}")
+        # フォールバック処理
         try:
-            img = Image.open(io.BytesIO(image_bytes)).convert("RGBA")
-            data = img.getdata()
-            new_data = []
-            green_threshold = 90
-            red_threshold = 130
-            blue_threshold = 130
-            for r, g, b, a in data:
-                if g > green_threshold and r < red_threshold and b < blue_threshold:
-                    new_data.append((r, g, b, 0))
-                else:
-                    new_data.append((r, g, b, a))
-            img.putdata(new_data)
-            buffer = io.BytesIO()
-            img.save(buffer, format="PNG")
-            return buffer.getvalue()
+            return remove(image_bytes)  # 基本的なrembg処理にフォールバック
         except Exception as fallback_error:
-            logger.error(f"Green background removal error: {fallback_error}")
-            raise
+            logger.error(f"Fallback removal also failed: {fallback_error}")
+            # 最終フォールバック: オリジナル画像を返す
+            return image_bytes
 
 def create_simple_prompt_without_expression(character: SimpleCharacter) -> str:
     """簡略化されたキャラクター情報から仕様書フォーマットのプロンプトを作成"""
