@@ -20,8 +20,8 @@ logger = logging.getLogger(__name__)
 
 # Vertex AI設定
 PROJECT_ID = "makeillust"
-LOCATION = "us-central1"  # Imagen APIは us-central1 のみサポート
-MODEL_ID = "imagen-4.0-generate-001"
+LOCATION = "us-central1"  # Gemini 画像プレビューは現状 us-central1 のみサポート
+MODEL_ID = "gemini-2.5-flash-image-preview"
 ENDPOINT = f"https://{LOCATION}-aiplatform.googleapis.com/v1/projects/{PROJECT_ID}/locations/{LOCATION}/publishers/google/models/{MODEL_ID}:predict"
 
 # 認証情報を取得
@@ -85,267 +85,268 @@ def health_check():
         "location": LOCATION,
         "model": MODEL_ID,
         "environment": os.getenv("K_SERVICE", "local"),
-        "api_type": "Vertex AI Imagen 4.0"
+        "api_type": "Vertex AI Gemini 2.5 Flash Image Preview"
     }
 
+def request_gemini_image(
+    access_token: str,
+    prompt: str,
+    seed: int,
+    base_image: Optional[bytes] = None,
+    negative_prompt: Optional[str] = None,
+) -> bytes:
+    """Gemini 2.5 Flash Image Previewに画像生成/編集をリクエスト"""
+
+    instance: Dict[str, Any] = {
+        "prompt": prompt,
+    }
+
+    if base_image:
+        instance["image"] = {
+            "bytesBase64Encoded": base64.b64encode(base_image).decode("utf-8"),
+            "mimeType": "image/png"
+        }
+
+    parameters: Dict[str, Any] = {
+        "sampleCount": 1,
+        "aspectRatio": "9:16",
+        "addWatermark": False,
+        "seed": seed,
+    }
+
+    if negative_prompt:
+        parameters["negativePrompt"] = negative_prompt
+
+    request_body = {
+        "instances": [instance],
+        "parameters": parameters
+    }
+
+    log_payload = {
+        "prompt_preview": prompt[:200],
+        "has_base_image": bool(base_image),
+        "seed": seed,
+        "negative_prompt": negative_prompt,
+        "parameters": {k: v for k, v in parameters.items() if k != "negativePrompt"}
+    }
+    logger.info(f"Gemini image request payload: {json.dumps(log_payload, ensure_ascii=False)}")
+
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Content-Type": "application/json"
+    }
+
+    response = requests.post(
+        ENDPOINT,
+        headers=headers,
+        json=request_body,
+        timeout=120
+    )
+
+    if response.status_code != 200:
+        logger.error(f"Gemini image API error: {response.status_code} - {response.text}")
+        raise Exception(f"Gemini API error: {response.status_code} - {response.text}")
+
+    result = response.json()
+    if "predictions" in result and result["predictions"]:
+        prediction = result["predictions"][0]
+        if "bytesBase64Encoded" in prediction:
+            return base64.b64decode(prediction["bytesBase64Encoded"])
+        if "image" in prediction:
+            return base64.b64decode(prediction["image"])
+
+    raise Exception(f"Unexpected Gemini image response: {result}")
+
 def generate_images_with_vertex_simple(character: SimpleCharacter) -> List[bytes]:
-    """簡略化されたキャラクター情報でVertex AI Imagen 4.0で4枚の表情違い画像を一度に生成"""
+    """簡略化されたキャラクター情報で表情差分ごとに1枚ずつ生成"""
     if not credentials:
         raise HTTPException(status_code=500, detail="Credentials not configured")
-    
+
     try:
-        # アクセストークンを取得
         if hasattr(credentials, 'refresh'):
             credentials.refresh(Request())
-        
+
         access_token = credentials.token
-        
-        # 4つの表情を仕様書通りに定義
+
+        negative_prompt = "low quality, blurry, watermark, text, signature, multiple people, inconsistent character, white background"
+
         expressions = [
-            """
+            ("ニュートラル", """
 【各画像の表情差分（顔のみ変更）】
 #1: ニュートラル — 穏やかな基準表情
-    口: 自然 / 眉: 標準 / 目: 標準""",
-            """
+    口: 自然 / 眉: 標準 / 目: 標準"""),
+            ("照れながら微笑み", """
 【各画像の表情差分（顔のみ変更）】
 #2: 照れながら微笑み — 口角をわずかに上げた優しい笑顔
-    口: 軽いスマイル / 眉: やや下げ / 目: やや細め""",
-            """
+    口: 軽いスマイル / 眉: やや下げ / 目: やや細め"""),
+            ("困り顔", """
 【各画像の表情差分（顔のみ変更）】
 #3: 困り顔 — 申し訳なさそうに眉が寄る
-    口: への字（小） / 眉: 内側に寄る / 目: やや細め""",
-            """
+    口: への字（小） / 眉: 内側に寄る / 目: やや細め"""),
+            ("むすっ", """
 【各画像の表情差分（顔のみ変更）】
 #4: むすっ — 拗ねたように正面を見据える
-    口: 真一文字 / 眉: 下がる / 目: 標準"""
+    口: 真一文字 / 眉: 下がる / 目: 標準"""),
         ]
-        
-        # 基本プロンプトを作成（簡略化版）
+
         base_prompt = create_simple_prompt_without_expression(character)
-        
-        # 4つのプロンプトを作成（各表情を追加）
-        prompts = [f"{base_prompt}\n{expr}" for expr in expressions]
-        
-        # デバッグ用：プロンプトの概要をログに出力
-        logger.info(f"Generated {len(prompts)} prompts, base prompt length: {len(base_prompt)} chars")
-        
-        # 各表情ごとに個別のAPIリクエストを送信（Imagen 4.0は1インスタンスのみサポート）
-        images = []
-        headers = {
-            "Authorization": f"Bearer {access_token}",
-            "Content-Type": "application/json"
-        }
-        
-        for i, prompt in enumerate(prompts):
-            expression_name = ['ニュートラル', '照れながら微笑み', '困り顔', 'むすっ'][i]
-            logger.info(f"Generating expression {i+1}/4: {expression_name}")
-            # デバッグ: プロンプトの内容を確認
-            logger.info(f"Full prompt length: {len(prompt)} chars")
-            
-            # プロンプト全体を表示（改行で分割して見やすくする）
-            logger.info(f"========== FULL PROMPT FOR {expression_name} ==========")
-            for line in prompt.split('\n'):
-                if line.strip():  # 空行は除外
-                    logger.info(f"PROMPT: {line}")
-            logger.info(f"========== END PROMPT ==========")
-            
-            # キャラクター情報のデバッグ
-            logger.info(f"Character values - age: {character.age}, hair: {character.hair}, outfit: {character.outfit}")
-            
-            # 各表情用のリクエストボディ
-            request_body = {
-                "instances": [{"prompt": prompt}],
-                "parameters": {
-                    "sampleCount": 1,
-                    "aspectRatio": "9:16",
-                    "negativePrompt": "low quality, blurry, watermark, text, signature, multiple people, inconsistent character, white background",
-                    "seed": character.seed + i,  # 各表情で少しずつseedを変える
-                    "addWatermark": False
-                }
-            }
-            
-            response = requests.post(
-                ENDPOINT,
-                headers=headers,
-                json=request_body,
-                timeout=120
-            )
-            
-            if response.status_code != 200:
-                logger.error(f"Vertex AI API error for expression {expression_name}: {response.status_code} - {response.text}")
-                raise Exception(f"API error for {expression_name}: {response.status_code} - {response.text}")
-            
-            # レスポンスから画像を取得
-            result = response.json()
-            
-            if "predictions" in result and len(result["predictions"]) > 0:
-                prediction = result["predictions"][0]
-                if "bytesBase64Encoded" in prediction:
-                    image_data = base64.b64decode(prediction["bytesBase64Encoded"])
-                    images.append(image_data)
-                elif "image" in prediction:
-                    image_data = base64.b64decode(prediction["image"])
-                    images.append(image_data)
-                else:
-                    logger.error(f"No image data in prediction for {expression_name}")
-                    raise Exception(f"No image data for {expression_name}")
-            else:
-                logger.error(f"No predictions in response for {expression_name}: {result}")
-                raise Exception(f"No predictions for {expression_name}")
-        
-        if len(images) != 4:
-            logger.warning(f"Expected 4 images, got {len(images)}")
-            
+        logger.info(f"Generated base prompt (len={len(base_prompt)}) for character {character.character_id}")
+
+        images: List[bytes] = []
+
+        # 1枚目: テキストから生成
+        first_name, first_block = expressions[0]
+        first_prompt = f"{base_prompt}\n{first_block}"
+        logger.info(f"Creating base image for expression: {first_name}")
+        base_image = request_gemini_image(
+            access_token,
+            first_prompt,
+            character.seed,
+            negative_prompt=negative_prompt,
+        )
+        images.append(base_image)
+
+        # 残り3枚: 参照画像を使って表情のみ変更
+        for expression_name, expression_block in expressions[1:]:
+            logger.info(f"Editing base image for expression: {expression_name}")
+            edit_prompt = build_expression_edit_prompt(base_prompt, expression_block)
+            try:
+                edited = request_gemini_image(
+                    access_token,
+                    edit_prompt,
+                    character.seed,
+                    base_image=base_image,
+                    negative_prompt=negative_prompt,
+                )
+            except Exception as edit_error:
+                logger.warning(
+                    "Gemini edit failed for %s, fallback to fresh generation: %s",
+                    expression_name,
+                    edit_error,
+                )
+                fallback_prompt = f"{base_prompt}\n{expression_block}"
+                edited = request_gemini_image(
+                    access_token,
+                    fallback_prompt,
+                    character.seed,
+                    negative_prompt=negative_prompt,
+                )
+            images.append(edited)
+
         return images
-            
+
     except Exception as e:
-        logger.error(f"Vertex AI image generation error: {str(e)}")
+        logger.error(f"Gemini image generation error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Image generation failed: {str(e)}")
 
 def generate_images_with_vertex(character: Character) -> List[bytes]:
-    """Vertex AI Imagen 4.0で4枚の表情違い画像を一度に生成"""
+    """Vertex AI Imagen 4.0で表情差分ごとに1枚ずつ生成"""
     if not credentials:
         raise HTTPException(status_code=500, detail="Credentials not configured")
     
     try:
-        # アクセストークンを取得
         if hasattr(credentials, 'refresh'):
             credentials.refresh(Request())
-        
+
         access_token = credentials.token
-        
-        # 4つの表情を仕様書通りに定義
+
+        negative_prompt = "low quality, blurry, watermark, text, signature, multiple people, inconsistent character, white background"
+
         expressions = [
-            """
+            ("ニュートラル", """
 【各画像の表情差分（顔のみ変更）】
 #1: ニュートラル — 穏やかな基準表情
-    口: 自然 / 眉: 標準 / 目: 標準""",
-            """
+    口: 自然 / 眉: 標準 / 目: 標準"""),
+            ("照れながら微笑み", """
 【各画像の表情差分（顔のみ変更）】
 #2: 照れながら微笑み — 口角をわずかに上げた優しい笑顔
-    口: 軽いスマイル / 眉: やや下げ / 目: やや細め""",
-            """
+    口: 軽いスマイル / 眉: やや下げ / 目: やや細め"""),
+            ("困り顔", """
 【各画像の表情差分（顔のみ変更）】
 #3: 困り顔 — 申し訳なさそうに眉が寄る
-    口: への字（小） / 眉: 内側に寄る / 目: やや細め""",
-            """
+    口: への字（小） / 眉: 内側に寄る / 目: やや細め"""),
+            ("むすっ", """
 【各画像の表情差分（顔のみ変更）】
 #4: むすっ — 拗ねたように正面を見据える
-    口: 真一文字 / 眉: 下がる / 目: 標準"""
+    口: 真一文字 / 眉: 下がる / 目: 標準"""),
         ]
-        
-        # 基本プロンプトを作成（表情以外の共通部分）
+
         base_prompt = create_base_prompt_without_expression(character)
-        
-        # 4つのプロンプトを作成（各表情を追加）
-        prompts = [f"{base_prompt}\n{expr}" for expr in expressions]
-        
-        # デバッグ用：生成されるプロンプトをログに出力
-        for i, prompt in enumerate(prompts):
-            logger.info(f"Prompt {i+1} ({['ニュートラル', '照れながら微笑み', '困り顔', 'むすっ'][i]}): {prompt}")
-        
-        # 各表情ごとに個別のAPIリクエストを送信（Imagen 4.0は1インスタンスのみサポート）
-        images = []
-        headers = {
-            "Authorization": f"Bearer {access_token}",
-            "Content-Type": "application/json"
-        }
-        
-        for i, prompt in enumerate(prompts):
-            expression_name = ['ニュートラル', '照れながら微笑み', '困り顔', 'むすっ'][i]
-            logger.info(f"Generating expression {i+1}/4: {expression_name}")
-            
-            # 各表情用のリクエストボディ
-            request_body = {
-                "instances": [{"prompt": prompt}],
-                "parameters": {
-                    "sampleCount": 1,
-                    "aspectRatio": "9:16",
-                    "negativePrompt": "low quality, blurry, watermark, text, signature, multiple people, inconsistent character, white background",
-                    "seed": character.seed + i,  # 各表情で少しずつseedを変える
-                    "addWatermark": False
-                }
-            }
-            
-            response = requests.post(
-                ENDPOINT,
-                headers=headers,
-                json=request_body,
-                timeout=120
-            )
-            
-            if response.status_code != 200:
-                logger.error(f"Vertex AI API error for expression {expression_name}: {response.status_code} - {response.text}")
-                raise Exception(f"API error for {expression_name}: {response.status_code} - {response.text}")
-            
-            # レスポンスから画像を取得
-            result = response.json()
-            
-            if "predictions" in result and len(result["predictions"]) > 0:
-                prediction = result["predictions"][0]
-                if "bytesBase64Encoded" in prediction:
-                    image_data = base64.b64decode(prediction["bytesBase64Encoded"])
-                    images.append(image_data)
-                elif "image" in prediction:
-                    image_data = base64.b64decode(prediction["image"])
-                    images.append(image_data)
-                else:
-                    logger.error(f"No image data in prediction for {expression_name}")
-                    raise Exception(f"No image data for {expression_name}")
-            else:
-                logger.error(f"No predictions in response for {expression_name}: {result}")
-                raise Exception(f"No predictions for {expression_name}")
-        
-        if len(images) != 4:
-            logger.warning(f"Expected 4 images, got {len(images)}")
-        
+        logger.info(f"Generated base prompt (len={len(base_prompt)}) for character {character.character_id}")
+
+        images: List[bytes] = []
+
+        # 1枚目: テキストから生成
+        first_name, first_block = expressions[0]
+        first_prompt = f"{base_prompt}\n{first_block}"
+        logger.info(f"Creating base image for expression: {first_name}")
+        base_image = request_gemini_image(
+            access_token,
+            first_prompt,
+            character.seed,
+            negative_prompt=negative_prompt,
+        )
+        images.append(base_image)
+
+        # 残り3枚: 参照画像を使って表情のみ変更
+        for expression_name, expression_block in expressions[1:]:
+            logger.info(f"Editing base image for expression: {expression_name}")
+            edit_prompt = build_expression_edit_prompt(base_prompt, expression_block)
+            try:
+                edited = request_gemini_image(
+                    access_token,
+                    edit_prompt,
+                    character.seed,
+                    base_image=base_image,
+                    negative_prompt=negative_prompt,
+                )
+            except Exception as edit_error:
+                logger.warning(
+                    "Gemini edit failed for %s, fallback to fresh generation: %s",
+                    expression_name,
+                    edit_error,
+                )
+                fallback_prompt = f"{base_prompt}\n{expression_block}"
+                edited = request_gemini_image(
+                    access_token,
+                    fallback_prompt,
+                    character.seed,
+                    negative_prompt=negative_prompt,
+                )
+            images.append(edited)
+
         return images
-            
+
     except Exception as e:
-        logger.error(f"Vertex AI image generation error: {str(e)}")
+        logger.error(f"Gemini image generation error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Image generation failed: {str(e)}")
 
 def remove_green_background(image_bytes: bytes) -> bytes:
     """グリーンバックを透明にする"""
     try:
-        # 画像を開く
-        img = Image.open(io.BytesIO(image_bytes))
-        img = img.convert("RGBA")
-        
-        # 画像データを取得
-        data = img.getdata()
-        
-        # 新しい画像データ
-        new_data = []
-        
-        # グリーンの閾値（調整可能）
-        green_threshold = 100  # 緑の強さ
-        red_threshold = 100    # 赤の上限
-        blue_threshold = 100   # 青の上限
-        
-        for item in data:
-            # RGB値を取得
-            r, g, b, a = item
-            
-            # グリーンスクリーンの判定（緑が強く、赤と青が弱い）
-            if g > green_threshold and r < red_threshold and b < blue_threshold:
-                # 透明にする
-                new_data.append((r, g, b, 0))
-            else:
-                # そのまま保持
-                new_data.append(item)
-        
-        # 新しい画像を作成
-        img.putdata(new_data)
-        
-        # バイト列に変換
-        buffer = io.BytesIO()
-        img.save(buffer, format="PNG")
-        return buffer.getvalue()
-        
-    except Exception as e:
-        logger.error(f"Green background removal error: {str(e)}")
-        raise
+        # rembgで背景を除去（透過PNGを返す）
+        return remove(image_bytes)
+    except Exception as primary_error:
+        logger.warning(f"rembg removal failed, falling back to manual threshold: {primary_error}")
+        try:
+            img = Image.open(io.BytesIO(image_bytes)).convert("RGBA")
+            data = img.getdata()
+            new_data = []
+            green_threshold = 90
+            red_threshold = 130
+            blue_threshold = 130
+            for r, g, b, a in data:
+                if g > green_threshold and r < red_threshold and b < blue_threshold:
+                    new_data.append((r, g, b, 0))
+                else:
+                    new_data.append((r, g, b, a))
+            img.putdata(new_data)
+            buffer = io.BytesIO()
+            img.save(buffer, format="PNG")
+            return buffer.getvalue()
+        except Exception as fallback_error:
+            logger.error(f"Green background removal error: {fallback_error}")
+            raise
 
 def create_simple_prompt_without_expression(character: SimpleCharacter) -> str:
     """簡略化されたキャラクター情報から仕様書フォーマットのプロンプトを作成"""
@@ -354,8 +355,8 @@ def create_simple_prompt_without_expression(character: SimpleCharacter) -> str:
     logger.info(f"Creating prompt for character: age={character.age}, hair={character.hair}, outfit={character.outfit}")
     
     prompt = f"""【目的】
-同一キャラクターのラノベ風立ち絵を4枚同時に生成する。
-4枚は人物・髪・衣装・体格・画角・線のタッチを完全一致させ、顔の表情だけを各枚ごとに変更する。
+同一キャラクターのラノベ風立ち絵を1枚生成する。
+この画像は指定された表情以外の要素を完全に固定し、画面内には必ず単一のキャラクターのみを描写する。
 背景は完全にビビッドなグリーン#00FF00。質感テクスチャや落ち影は一切入れない。全身が頭からつま先までフレーム内に完全に収まること。
 
 【色調（数値を使わない指定）】
@@ -396,10 +397,22 @@ overall gentle, low-contrast illumination.
 背景小物、武器、他キャラ、文字、透かし（watermark）、粒子ノイズ、紙テクスチャ、床影・床反射、過度な光沢、強コントラスト、切れフレーミング。
 
 【出力ルール】
-- 合計4枚。全画像で同一人物としての一貫性を最優先。
-- 差分は「顔の表情のみ」。髪・衣装・体格・ポーズ・画角・線の太さは完全固定。"""
+- この画像は単一の全身立ち絵1枚。フレーム内の人物は一人のみ。
+- 差分は「顔の表情のみ」（この後ろに続く表情指定に従う）。髪・衣装・体格・ポーズ・画角・線の太さは完全固定。
+- 追加のキャラクター、複数人、反射像、鏡像の描写は禁止。"""
     
     return prompt
+
+def build_expression_edit_prompt(base_prompt: str, expression_block: str) -> str:
+    """既存画像を参照して表情のみ変更するための追加指示を付与"""
+
+    return (
+        f"{base_prompt}\n{expression_block}\n\n"
+        "【追加指示】参照画像として添付された既存の立ち絵を使用し、"
+        "髪型・衣装・体格・ポーズ・照明・背景・線のタッチは一切変更せず、"
+        "顔の表情だけを指定された内容に差し替える。ビフォーアフターで人物は完全に同一であり、"
+        "追加の人物や構図変更は厳禁。"
+    )
 
 def create_base_prompt_without_expression(character: Character) -> str:
     """仕様書フォーマットに基づいたプロンプトを作成"""
@@ -414,8 +427,8 @@ def create_base_prompt_without_expression(character: Character) -> str:
     outfit_accessories = ", ".join(getattr(character.outfit, 'accessories', [])) if hasattr(character.outfit, 'accessories') and getattr(character.outfit, 'accessories', None) else "なし"
     
     prompt = f"""【目的】
-同一キャラクターのラノベ風立ち絵を4枚同時に生成する。
-4枚は人物・髪・衣装・体格・画角・線のタッチを完全一致させ、顔の表情だけを各枚ごとに変更する。
+同一キャラクターのラノベ風立ち絵を1枚生成する。
+この画像は指定された表情以外の要素を完全に固定し、画面内には必ず単一のキャラクターのみを描写する。
 背景は完全にビビッドなグリーン#00FF00。質感テクスチャや落ち影は一切入れない。全身が頭からつま先までフレーム内に完全に収まること。
 
 【色調（数値を使わない指定）】
@@ -455,8 +468,9 @@ overall gentle, low-contrast illumination.
 背景小物、武器、他キャラ、文字、透かし（watermark）、粒子ノイズ、紙テクスチャ、床影・床反射、過度な光沢、強コントラスト、切れフレーミング。
 
 【出力ルール】
-- 合計4枚。全画像で同一人物としての一貫性を最優先。
-- 差分は「顔の表情のみ」。髪・衣装・体格・ポーズ・画角・線の太さは完全固定。"""
+- この画像は単一の全身立ち絵1枚。フレーム内の人物は一人のみ。
+- 差分は「顔の表情のみ」（この後ろに続く表情指定に従う）。髪・衣装・体格・ポーズ・画角・線の太さは完全固定。
+- 追加のキャラクター、複数人、反射像、鏡像の描写は禁止。"""
     
     return prompt
 
@@ -529,7 +543,7 @@ async def generate_images_simple(request: SimpleGenerateRequest):
         
         logger.info(f"Generating images for character: {request.character.character_id}")
         
-        # 4枚の画像を一度に生成（簡略化版）
+        # 4つの表情バリエーションを順次生成（簡略化版）
         try:
             logger.info("Generating 4 expression variations with simplified data")
             
@@ -552,14 +566,7 @@ async def generate_images_simple(request: SimpleGenerateRequest):
                 logger.info(f"Removed green background from image {i+1}")
             except Exception as e:
                 logger.warning(f"Green background removal failed for image {i}: {str(e)}")
-                try:
-                    processed = remove(Image.open(io.BytesIO(img_bytes)))
-                    buf = io.BytesIO()
-                    processed.save(buf, format="PNG")
-                    processed_images.append(buf.getvalue())
-                except Exception as e2:
-                    logger.error(f"Fallback background removal also failed: {str(e2)}")
-                    processed_images.append(img_bytes)
+                processed_images.append(img_bytes)
         
         # 返却形式に応じて処理
         if request.return_type == "base64_list":
@@ -614,9 +621,9 @@ async def generate_images(request: GenerateRequest):
         
         logger.info(f"Generating images for character: {request.character.character_id}")
         
-        # 4枚の画像を一度に生成
+        # 4つの表情バリエーションを順次生成
         try:
-            logger.info("Generating 4 expression variations in single request")
+            logger.info("Generating 4 expression variations sequentially")
             images = generate_images_with_vertex(request.character)
             logger.info(f"Successfully generated {len(images)} images")
         except Exception as e:
@@ -636,15 +643,7 @@ async def generate_images(request: GenerateRequest):
                 logger.info(f"Removed green background from image {i+1}")
             except Exception as e:
                 logger.warning(f"Green background removal failed for image {i}: {str(e)}")
-                # フォールバック: rembgで背景除去
-                try:
-                    processed = remove(Image.open(io.BytesIO(img_bytes)))
-                    buf = io.BytesIO()
-                    processed.save(buf, format="PNG")
-                    processed_images.append(buf.getvalue())
-                except Exception as e2:
-                    logger.error(f"Fallback background removal also failed: {str(e2)}")
-                    processed_images.append(img_bytes)
+                processed_images.append(img_bytes)
         
         # 返却形式に応じて処理
         if request.return_type == "base64_list":
