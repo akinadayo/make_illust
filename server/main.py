@@ -167,7 +167,7 @@ def request_gemini_image(
         "generationConfig": generation_config,
         "safetySettings": [
             {
-                "category": "HARM_CATEGORY_DANGEROUS",
+                "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
                 "threshold": "BLOCK_ONLY_HIGH"
             },
             {
@@ -179,7 +179,7 @@ def request_gemini_image(
                 "threshold": "BLOCK_ONLY_HIGH"
             },
             {
-                "category": "HARM_CATEGORY_SEXUAL",
+                "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
                 "threshold": "BLOCK_ONLY_HIGH"
             }
         ],
