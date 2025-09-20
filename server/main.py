@@ -692,8 +692,7 @@ async def generate_images(request: GenerateRequest):
             ]
             return {
                 "images": base64_images,
-                "message": f"Successfully generated {len(base64_images)} images",
-                "prompts": prompts  # デバッグ用にプロンプトも返す
+                "message": f"Successfully generated {len(base64_images)} images"
             }
         
         # ZIP形式で返却
