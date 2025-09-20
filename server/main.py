@@ -95,11 +95,24 @@ class EmoCharacter(BaseModel):
     eyes: str = Field(..., description="目の形と色（例：大きい青い目）")
     outfit: str = Field(..., description="服装（例：メイド服、カジュアル）")
 
+class FantasyCharacter(BaseModel):
+    character_id: str = Field(default="fantasy_001", description="キャラクターID")
+    seed: int = Field(default=123456789, description="シード値")
+    height: str = Field(..., description="頭身: small/medium/tall")
+    hair_length: str = Field(..., description="髪の長さ（例：long、short、medium）")
+    hair_color: str = Field(..., description="髪色（例：silver、blonde、black）")
+    hair_style: str = Field(..., description="髪型（例：straight、wavy、twintails）")
+    outfit: str = Field(..., description="服装（例：knight armor、mage robe、elegant dress）")
+    eye_shape: str = Field(..., description="瞳の形（例：large、narrow、almond-shaped）")
+    eye_color: str = Field(..., description="瞳の色（例：blue、red、heterochromia）")
+    expression: str = Field(..., description="表情（例：confident、mysterious、gentle）")
+
 class SimpleGenerateRequest(BaseModel):
     character: Optional[SimpleCharacter] = Field(default=None, description="通常モード用キャラクター")
     return_type: str = Field(default="base64_list", description="返却形式: 'zip' or 'base64_list'")
-    mode: str = Field(default="normal", description="生成モード: 'normal' or 'emo'")  # モード追加
+    mode: str = Field(default="normal", description="生成モード: 'normal' or 'emo' or 'fantasy'")  # モード追加
     emo_character: Optional[EmoCharacter] = Field(default=None, description="エモモード用キャラクター")
+    fantasy_character: Optional[FantasyCharacter] = Field(default=None, description="ファンタジーモード用キャラクター")
 
 @app.get("/")
 def root():
@@ -907,6 +920,142 @@ def generate_emo_with_vertex(character: EmoCharacter) -> List[bytes]:
         logger.error(f"Emo image generation error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Emo image generation failed: {str(e)}")
 
+def create_fantasy_prompt(character: FantasyCharacter) -> str:
+    """ファンタジーキャラクター用のプロンプトを作成"""
+    
+    # 頭身の設定
+    height_mapping = {
+        "small": "youthful/petite proportions, 5-5.5 heads tall with youthful proportions, shorter height but normal realistic anatomy, NOT chibi or deformed style",
+        "medium": "balanced proportions, exactly 6 heads tall, measure head size and make body exactly 5 more head lengths",
+        "tall": "tall/elegant proportions, 7-8 heads tall with small head, long legs, elongated limbs for elegant mature style"
+    }
+    
+    height_desc = height_mapping.get(character.height, height_mapping["medium"])
+    
+    prompt = f"""A high-quality fantasy character illustration in the style of premium Japanese mobile games, featuring a beautiful anime-style character with {character.hair_length} {character.hair_color} hair in {character.hair_style} style, wearing {character.outfit}. The character has {character.eye_shape} eyes in {character.eye_color} color, showing {character.expression} that captures their personality.
+
+The character is shown in full body standing pose against a pure black background (#000000), displaying the entire outfit from head to toe. The character should have {height_desc}.
+
+IMPORTANT: Even for youthful/petite option, maintain realistic human anatomy and proportions. This represents a younger or shorter character, NOT a stylized or deformed character. Keep facial features and body structure anatomically correct.
+
+Use soft, muted color palette with low saturation around 40-60%. Apply pastel-like tones and gentle color gradations. Avoid harsh, vibrant colors - instead use subtle, desaturated hues with a dreamy, ethereal quality. Colors should have a milky, translucent feeling with plenty of white mixed in. Think watercolor-like softness rather than bold digital colors.
+
+The artistic style should embody the sophisticated digital painting techniques seen in games like Granblue Fantasy or Fate/Grand Order, with extremely detailed linework using thin, delicate lines that vary in weight to create depth and flow. The line art should be colored rather than pure black, using darker tones of the local colors for each area.
+
+The background must be completely black (#000000) to make the character stand out as a game asset or character portrait. No environmental elements, only the character against the black void.
+
+For the coloring technique, employ a refined cel-shading approach with two distinct shadow layers. Shadows should be very subtle - first shadow only 8-10% darker than base color, second shadow 15-20% darker. Use warm gray or beige tones for shadows instead of pure darker colors. Blend shadows softly with gradient transitions.
+
+Apply an overall atmospheric haze effect - as if viewing through soft focus or morning mist. Colors should blend into each other gently at the edges. Use opacity layers around 70-80% to create translucent, layered color effects.
+
+The character's face should feature the distinctive anime style with large, expressive eyes that take up about 25-30% of the face area. Eye colors should be desaturated and soft - even bright colors like blue or green should appear gentle and muted.
+
+Hair colors should be soft and muted - even vibrant colors like pink or blue should appear dusty and gentle, as if faded by sunlight. All clothing colors should be desaturated and soft - whites should be off-white or cream, blacks should be charcoal gray, bright colors should be dusty and muted.
+
+Show the full body including legs and feet, with appropriate footwear that matches the outfit style.
+
+Minimal to no magical effects or special elements. Focus solely on the character design itself without surrounding energy effects, auras, or magical circles.
+
+Add a subtle rim light or outline glow around the character to ensure they pop from the black background, using soft pastel tones rather than bright neon colors.
+
+Final color treatment: Apply a subtle color filter over the entire image to unify the palette - a very light overlay of cream, lavender, or pale blue to create cohesion. Reduce overall contrast slightly to maintain the soft, dreamy aesthetic."""
+
+    return prompt
+
+def generate_fantasy_with_vertex(character: FantasyCharacter) -> List[bytes]:
+    """ファンタジーキャラクターの4つの表情バリエーションを生成"""
+    if not credentials:
+        logger.error("Credentials are None - not configured at all")
+        raise HTTPException(status_code=500, detail="Credentials not configured")
+
+    try:
+        expressions = [
+            ("neutral", f"{character.expression} - base expression showing character's default mood"),
+            ("happy", f"happy and cheerful version of {character.expression}"),
+            ("serious", f"serious and focused version of {character.expression}"),
+            ("special", f"unique special expression variation of {character.expression}")
+        ]
+
+        negative_prompt = """low quality, pixelated, blurry, distorted anatomy, bad proportions,
+        bright neon colors, oversaturated colors, harsh vivid colors, pure black shadows,
+        environmental elements, background objects, multiple characters, chibi style,
+        deformed features, floating particles, magical auras, energy effects"""
+
+        base_prompt = create_fantasy_prompt(character)
+        logger.info(f"Generated fantasy prompt (len={len(base_prompt)}) for character {character.character_id}")
+
+        images: List[bytes] = []
+
+        # 1枚目: テキストから生成
+        first_name, first_desc = expressions[0]
+        first_prompt = f"{base_prompt}\nExpression: {first_desc}"
+        logger.info(f"Creating base fantasy image for expression: {first_name}")
+        base_image = request_gemini_image(
+            first_prompt,
+            character.seed,
+            negative_prompt=negative_prompt,
+        )
+        images.append(base_image)
+
+        # 残り3枚: 並列処理で参照画像を使って表情のみ変更
+        def generate_expression(expression_data):
+            expression_name, expression_desc = expression_data
+            logger.info(f"Starting parallel generation for fantasy expression: {expression_name}")
+            edit_prompt = f"{base_prompt}\nEdit the provided image to change ONLY the facial expression to: {expression_desc}\nKeep everything else EXACTLY the same."
+            try:
+                result = request_gemini_image(
+                    edit_prompt,
+                    character.seed,
+                    base_image=base_image,
+                    negative_prompt=negative_prompt,
+                )
+                logger.info(f"Successfully generated fantasy expression: {expression_name}")
+                return result
+            except Exception as edit_error:
+                logger.warning(
+                    "Gemini edit failed for fantasy %s, fallback to fresh generation: %s",
+                    expression_name,
+                    edit_error,
+                )
+                fallback_prompt = f"{base_prompt}\nExpression: {expression_desc}"
+                return request_gemini_image(
+                    fallback_prompt,
+                    character.seed,
+                    negative_prompt=negative_prompt,
+                )
+        
+        # ThreadPoolExecutorで並列実行
+        logger.info("Starting parallel generation for 3 fantasy expression variations")
+        with ThreadPoolExecutor(max_workers=3) as executor:
+            future_to_expression = {
+                executor.submit(generate_expression, exp_data): idx 
+                for idx, exp_data in enumerate(expressions[1:], start=1)
+            }
+            
+            results = {}
+            
+            for future in as_completed(future_to_expression):
+                idx = future_to_expression[future]
+                try:
+                    result = future.result(timeout=120)
+                    results[idx] = result
+                    logger.info(f"Fantasy expression {idx} generated successfully")
+                except Exception as e:
+                    logger.error(f"Failed to generate fantasy expression {idx}: {e}")
+                    raise
+            
+            # 順番通りに追加
+            for i in range(1, 4):
+                if i in results:
+                    images.append(results[i])
+                    
+        logger.info(f"Generated {len(images)} fantasy images successfully")
+        return images
+
+    except Exception as e:
+        logger.error(f"Fantasy image generation error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Fantasy image generation failed: {str(e)}")
+
 @app.post("/api/generate/simple")
 async def generate_images_simple(request: SimpleGenerateRequest):
     """簡略化されたキャラクター画像を生成するエンドポイント"""
@@ -952,6 +1101,29 @@ async def generate_images_simple(request: SimpleGenerateRequest):
                 raise HTTPException(
                     status_code=500,
                     detail=f"Failed to generate emo images: {str(e)}"
+                )
+        elif request.mode == "fantasy":
+            if not request.fantasy_character:
+                logger.error("Fantasy mode requires fantasy_character field")
+                raise HTTPException(
+                    status_code=422,
+                    detail="fantasy_character is required for fantasy mode"
+                )
+            logger.info(f"Generating fantasy images for character: {request.fantasy_character.character_id}")
+            
+            # ファンタジーモード用の画像生成
+            try:
+                logger.info("Generating 4 fantasy expression variations")
+                images = generate_fantasy_with_vertex(request.fantasy_character)
+                logger.info(f"Successfully generated {len(images)} fantasy images")
+                # ファンタジーモードは背景除去不要（黒背景のまま使用）
+                processed_images = images
+                skip_background_removal = True
+            except Exception as e:
+                logger.error(f"Failed to generate fantasy images: {str(e)}")
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Failed to generate fantasy images: {str(e)}"
                 )
         else:
             # 通常モード

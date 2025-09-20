@@ -1,11 +1,12 @@
 import { useState } from 'react'
 import SimpleChatInterview from './components/SimpleChatInterview'
 import EmoMode from './components/EmoMode'
+import FantasyMode from './components/FantasyMode'
 import ImagePreview from './components/ImagePreview'
 import './App.css'
 
 function App() {
-  const [mode, setMode] = useState('normal') // 'normal' or 'emo'
+  const [mode, setMode] = useState('normal') // 'normal' or 'emo' or 'fantasy'
   const [characterData, setCharacterData] = useState({
     character_id: `char_${Date.now()}`,
     seed: 123456789,
@@ -76,6 +77,12 @@ function App() {
           >
             エモモード
           </button>
+          <button 
+            className={`mode-btn ${mode === 'fantasy' ? 'active' : ''}`}
+            onClick={() => switchMode('fantasy')}
+          >
+            ファンタジーモード
+          </button>
         </div>
       </header>
 
@@ -88,8 +95,14 @@ function App() {
             isGenerating={isGenerating}
             setIsGenerating={setIsGenerating}
           />
-        ) : (
+        ) : mode === 'emo' ? (
           <EmoMode
+            setGeneratedImages={setGeneratedImages}
+            isGenerating={isGenerating}
+            setIsGenerating={setIsGenerating}
+          />
+        ) : (
+          <FantasyMode
             setGeneratedImages={setGeneratedImages}
             isGenerating={isGenerating}
             setIsGenerating={setIsGenerating}
