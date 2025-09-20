@@ -76,9 +76,19 @@ class GenerateRequest(BaseModel):
     character: Character
     return_type: str = Field(default="base64_list", description="返却形式: 'zip' or 'base64_list'")
 
+class EmoCharacter(BaseModel):
+    character_id: str = Field(default="emo_001", description="キャラクターID")
+    seed: int = Field(default=123456789, description="シード値")
+    height: str = Field(..., description="身長: small/medium/tall")
+    hair: str = Field(..., description="髪型と髪色（例：黒のロングストレート）")
+    eyes: str = Field(..., description="目の形と色（例：大きい青い目）")
+    outfit: str = Field(..., description="服装（例：メイド服、カジュアル）")
+
 class SimpleGenerateRequest(BaseModel):
     character: SimpleCharacter
     return_type: str = Field(default="base64_list", description="返却形式: 'zip' or 'base64_list'")
+    mode: str = Field(default="normal", description="生成モード: 'normal' or 'emo'")  # モード追加
+    emo_character: Optional[EmoCharacter] = Field(default=None, description="エモモード用キャラクター")
 
 @app.get("/api/health")
 def health_check():
@@ -295,14 +305,14 @@ def generate_images_with_vertex_simple(character: SimpleCharacter) -> List[bytes
         negative_prompt = "low quality, blurry, dark, underexposed, dim lighting, watermark, text, signature, multiple people, inconsistent character, white background, green outline, green edge, green spill, green fringe, green glow, green halo, chromatic aberration, color bleeding, color fringing, artifacts around edges, fuzzy edges, blurred edges"
 
         expressions = [
+            ("微笑み", """
+【各画像の表情差分（顔のみ変更）】
+#1: 微笑み — 口角をわずかに上げた優しい笑顔
+    口: 軽いスマイル / 眉: やや下げ / 目: やや細め"""),
             ("ニュートラル", """
 【各画像の表情差分（顔のみ変更）】
-#1: ニュートラル — 穏やかな基準表情
+#2: ニュートラル — 穏やかな基準表情
     口: 自然 / 眉: 標準 / 目: 標準"""),
-            ("照れながら微笑み", """
-【各画像の表情差分（顔のみ変更）】
-#2: 照れながら微笑み — 口角をわずかに上げた優しい笑顔
-    口: 軽いスマイル / 眉: やや下げ / 目: やや細め"""),
             ("困り顔", """
 【各画像の表情差分（顔のみ変更）】
 #3: 困り顔 — 申し訳なさそうに眉が寄る
@@ -403,14 +413,14 @@ def generate_images_with_vertex(character: Character) -> List[bytes]:
         negative_prompt = "low quality, blurry, dark, underexposed, dim lighting, watermark, text, signature, multiple people, inconsistent character, white background, green outline, green edge, green spill, green fringe, green glow, green halo, chromatic aberration, color bleeding, color fringing, artifacts around edges, fuzzy edges, blurred edges"
 
         expressions = [
+            ("微笑み", """
+【各画像の表情差分（顔のみ変更）】
+#1: 微笑み — 口角をわずかに上げた優しい笑顔
+    口: 軽いスマイル / 眉: やや下げ / 目: やや細め"""),
             ("ニュートラル", """
 【各画像の表情差分（顔のみ変更）】
-#1: ニュートラル — 穏やかな基準表情
+#2: ニュートラル — 穏やかな基準表情
     口: 自然 / 眉: 標準 / 目: 標準"""),
-            ("照れながら微笑み", """
-【各画像の表情差分（顔のみ変更）】
-#2: 照れながら微笑み — 口角をわずかに上げた優しい笑顔
-    口: 軽いスマイル / 眉: やや下げ / 目: やや細め"""),
             ("困り顔", """
 【各画像の表情差分（顔のみ変更）】
 #3: 困り顔 — 申し訳なさそうに眉が寄る
@@ -635,6 +645,23 @@ no texture, no vignette, no gradient, no floor shadow, no green spill on charact
     
     return prompt
 
+def create_emo_prompt(character: EmoCharacter) -> str:
+    """エモ用のプロンプト生成（final_anime_prompt_v6.mdベース）"""
+    # heightの値を適切に変換
+    height_map = {
+        "small": "small",
+        "medium": "medium", 
+        "tall": "tall",
+        "小さい": "small",
+        "普通": "medium",
+        "大きめ": "tall"
+    }
+    height = height_map.get(character.height.lower(), "medium")
+    
+    prompt = f"""Professional anime illustration with masterpiece quality and absurdres detail level for game sprite use, featuring a single girl with {character.hair} and {character.eyes} wearing {character.outfit} with {height} proportions, standing in perfectly upright vertical position suitable for game character sprite with no head tilt or body lean, full body pose against a pure black background that must remain completely black without any gray tones, where these user specifications take absolute priority and must be followed exactly as written, with the character rendered in a sophisticated flat coloring style that creates depth entirely through strategic brightness gradients rather than traditional shadows, starting with the character's proportions which vary based on the HEIGHT parameter where small creates exactly 5 head tall petite figure with youthful innocent features and noticeably shorter stature maintaining cuteness without explicit childish elements, tall creates elegant 6.5 head tall proportions with elongated elegant limbs and mature sophisticated features, and medium or unspecified creates standard 5.5-6 head tall proportions with balanced teenage appearance, ensuring the figure maintains realistic anime proportions absolutely never becoming chibi or super-deformed regardless of height selection, with properly proportioned limbs where legs comprise 45% of total height for all builds, implementing absolutely mandatory comprehensive gradient-based rendering system where EVERY single element from hair to clothing to accessories MUST show dramatic 30-40% brightness variations to create dimensionality or the image is considered failed, specifically the hair must transition from 40% brightness at the roots through 55% in the mid-sections to 70% at the tips with individual strand groups varying by 10% brightness to create natural volume without any cel shading, using blue-tinted dark gray base colors like #1A1A2E or #16213E for dark hair rather than pure black to maintain the soft aesthetic, while clothing follows an absolute mandatory layering system where EVERY single piece shows brightness gradients: shirts/tops must be 95% brightness at shoulders gradually darkening to 55% at waist creating 40% variation, skirts must be 90% brightness at waistband darkening to 50% at hem for clear vertical depth, sleeves transitioning from 95% at shoulders to 60% at wrists, aprons and outer layers following same top-to-bottom gradient rules, with the frontmost complete layer at overall 95% brightness, second layer at 80%, third at 70%, fourth at 60%, and every fold/crease showing additional 20% darkening, creating clear depth hierarchy without breaking flat coloring rule, with gradient effect so prominent that viewer can immediately see the brightness variation on every piece of clothing, if any clothing appears uniformly colored the image is failed, applying this same gradient principle to ALL clothing elements not just hair, where every piece of clothing must show clear brightness gradients creating dimensional appearance purely through brightness variation, with shoes and feet showing 40% darker brightness at ground contact points transitioning smoothly upward, using regular footwear appropriate to the outfit, using the established palette of powder blue #E0F4FF, baby pink #FFE8F0, pale lavender #E6E0F0, and mint green #F0FFF8, all maintaining 90-95% brightness with only 15-25% saturation to achieve the characteristic milky washed-out appearance, ensuring that traditional black elements in clothing like maid outfits are replaced with dark blue-gray #2C3E50 while maintaining the outfit's recognizable silhouette, for casual/streetwear use full pastel palette, BUT for maid outfits keep traditional black as dark blue-gray #2C3E50 NOT pastel, whites stay cream #FFF8F0, incorporating minimum 4-5 overlapping clothing layers to create depth through brightness variation alone, each layer featuring different fabric textures indicated solely through subtle color and brightness shifts rather than texture rendering, with oversized loose-fitting silhouettes being essential for achieving the correct aesthetic, decorated with asymmetric non-functional elements with extreme intricacy: precisely drawn straps with individual adjustment holes, detailed buckles showing metallic highlights through brightness variation, ribbons with visible fabric weave patterns, decorative chains with every link defined, small printed patterns where each motif is completely drawn not simplified, tiny mascot designs with full facial features and clothing details, elaborate lace trim with every loop and connection visible, embroidered sections showing individual thread directions, multiple button types each with unique design, decorative stitching patterns following realistic sewing logic, limiting accessories to exactly 2-3 carefully chosen focal points such as small hair ornaments in coordinated pastels, a simple bag or pouch with subtle decorations, and maximum one small keychain or charm attachment, rendering the face with eyes that occupy exactly one quarter of the face height with detailed gradient irises blending 3 carefully selected pastel colors, individually drawn eyelashes with natural variation, maintaining the essential sleepy half-closed drowsy expression with a slightly vacant melancholic gaze that defines the style's emotional quality, using only a tiny dot or subtle shadow for the nose and minimal to completely absent mouth to maintain the minimalist facial features, all line art must be rendered at MAXIMUM 1 pixel thickness only with absolutely no exceptions, ultra-thin delicate lines throughout entire image, thinner than pencil sketch lines, comparable to finest technical pen 0.03mm drawings, every line must be hairline thin including main outlines, every single decorative element fully realized with precision linework including individual lace patterns, detailed embroidery stitches, every button and buttonhole clearly defined, all fabric seams visible, intricate fold lines showing fabric structure, individual hair strands drawn separately with varying flow, delicate eyelash separation, fine jewelry chain links if present, tiny pattern details fully rendered not suggested, achieving supreme technical precision comparable to professional manga illustration with meticulous attention to smallest details, lines tinted to match adjacent colors rather than using black, employing dark blue-gray #4A5568 for main structural outlines only, with smooth antialiased curves throughout maintaining razor-sharp clarity, absolutely no line simplification or shorthand allowed, every ruffle edge individually drawn, every pleat carefully delineated, every decorative stitch shown, achieving a perfectly clean vector illustration quality with supreme intricacy and craftsmanship, comparable to professional Adobe Illustrator artwork with maximum detail density, where every millimeter of the illustration contains carefully considered details, intricate patterns within patterns, subtle design elements that reward close inspection, maintaining technical excellence of commercial game art and high-end character design standards, zero texture or noise but maximum detail complexity, sharp yet soft edges with perfect anti-aliasing, ensuring every decorative element from smallest button to tiniest embroidered flower is fully realized with complete internal detail not just suggested shapes, consistent professional production quality rejecting any amateur simplification, where every button, seam, fold, and decorative element is fully realized, individual hair strands are clearly defined, and the overall composition maintains perfect centering with generous margins around the character, showing the complete figure including footwear in perfectly upright vertical stance suitable for game sprite use, with absolutely no body tilting or leaning, head held straight without tilting left or right, shoulders perfectly level and horizontal, spine completely vertical, both feet planted firmly on same horizontal plane, maintaining symmetrical balance for clean game asset extraction, only the weight distribution can favor one leg while keeping overall posture perfectly vertical, ensuring the character can be cleanly extracted as game sprite without rotation correction, in a natural relaxed pose that maintains perfect vertical alignment rather than dynamic angled poses, creating an illustration that captures the exact aesthetic of modern Japanese character designs with their characteristic combination of cute styling, melancholic undertones, and sophisticated color harmony, maintaining the delicate balance between simplicity and detail that defines this particular art style."""
+    
+    return prompt
+
 def build_expression_edit_prompt(base_prompt: str, expression_block: str) -> str:
     """既存画像を参照して表情のみ変更するための追加指示を付与"""
 
@@ -771,6 +798,98 @@ Style: Japanese anime/manga illustration, soft pastel colors, clean lines, profe
     
     return prompt
 
+def generate_emo_with_vertex(character: EmoCharacter) -> List[bytes]:
+    """エモ画像を生成（final_anime_prompt_v6.mdベース）"""
+    if not credentials:
+        raise HTTPException(status_code=500, detail="Credentials not configured")
+    
+    try:
+        if credentials and hasattr(credentials, 'refresh'):
+            credentials.refresh(Request())
+
+        # エモ用のネガティブプロンプト（黒背景用）
+        negative_prompt = "low quality, blurry, dark, underexposed, watermark, text, signature, multiple people, gray background, white background, gradient background, textured background"
+
+        expressions = [
+            ("smile", "gentle smile with slightly raised mouth corners"),
+            ("neutral", "calm neutral expression"),
+            ("surprised", "wide eyes with slightly open mouth"),
+            ("troubled", "worried expression with furrowed brows"),
+        ]
+
+        base_prompt = create_emo_prompt(character)
+        logger.info(f"Generated emo prompt (len={len(base_prompt)}) for character {character.character_id}")
+
+        images: List[bytes] = []
+
+        # 1枚目: テキストから生成
+        first_name, first_desc = expressions[0]
+        first_prompt = f"{base_prompt}\nExpression: {first_desc}"
+        logger.info(f"Creating base emo image for expression: {first_name}")
+        base_image = request_gemini_image(
+            first_prompt,
+            character.seed,
+            negative_prompt=negative_prompt,
+        )
+        images.append(base_image)
+
+        # 残り3枚: 並列処理で参照画像を使って表情のみ変更
+        def generate_expression(expression_data):
+            expression_name, expression_desc = expression_data
+            logger.info(f"Starting parallel generation for emo expression: {expression_name}")
+            edit_prompt = f"{base_prompt}\nEdit the provided image to change ONLY the facial expression to: {expression_desc}\nKeep everything else EXACTLY the same."
+            try:
+                result = request_gemini_image(
+                    edit_prompt,
+                    character.seed,
+                    base_image=base_image,
+                    negative_prompt=negative_prompt,
+                )
+                logger.info(f"Successfully generated emo expression: {expression_name}")
+                return result
+            except Exception as edit_error:
+                logger.warning(
+                    "Gemini edit failed for emo %s, fallback to fresh generation: %s",
+                    expression_name,
+                    edit_error,
+                )
+                fallback_prompt = f"{base_prompt}\nExpression: {expression_desc}"
+                return request_gemini_image(
+                    fallback_prompt,
+                    character.seed,
+                    negative_prompt=negative_prompt,
+                )
+        
+        # ThreadPoolExecutorで並列実行
+        logger.info("Starting parallel generation for 3 emo expression variations")
+        with ThreadPoolExecutor(max_workers=3) as executor:
+            future_to_expression = {
+                executor.submit(generate_expression, exp_data): idx 
+                for idx, exp_data in enumerate(expressions[1:], start=1)
+            }
+            
+            results = {}
+            
+            for future in as_completed(future_to_expression):
+                idx = future_to_expression[future]
+                try:
+                    result = future.result(timeout=120)
+                    results[idx] = result
+                    logger.info(f"Emo expression {idx} generated successfully")
+                except Exception as e:
+                    logger.error(f"Emo expression {idx} generation failed: {e}")
+                    raise HTTPException(status_code=500, detail=f"Failed to generate emo expression {idx}: {str(e)}")
+            
+            for idx in sorted(results.keys()):
+                images.append(results[idx])
+        
+        logger.info(f"All {len(images)} emo images generated successfully")
+        return images
+
+    except Exception as e:
+        logger.error(f"Emo image generation error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Emo image generation failed: {str(e)}")
+
 @app.post("/api/generate/simple")
 async def generate_images_simple(request: SimpleGenerateRequest):
     """簡略化されたキャラクター画像を生成するエンドポイント"""
@@ -792,15 +911,36 @@ async def generate_images_simple(request: SimpleGenerateRequest):
         logger.info(f"PROJECT_ID: {PROJECT_ID}")
         logger.info(f"LOCATION: {LOCATION}")
         logger.info(f"MODEL_ID: {MODEL_ID}")
-        logger.info(f"Generating images for character: {request.character.character_id}")
-        
-        # 4つの表情バリエーションを順次生成（簡略化版）
-        try:
-            logger.info("Generating 4 expression variations with simplified data")
+        # モードに応じて処理を分岐
+        if request.mode == "emo" and request.emo_character:
+            logger.info(f"Generating emo images for character: {request.emo_character.character_id}")
             
-            # 簡略化された形式用の画像生成関数を呼び出し
-            images = generate_images_with_vertex_simple(request.character)
-            logger.info(f"Successfully generated {len(images)} images")
+            # エモモード用の画像生成
+            try:
+                logger.info("Generating 4 emo expression variations")
+                images = generate_emo_with_vertex(request.emo_character)
+                logger.info(f"Successfully generated {len(images)} emo images")
+                # エモモードは背景除去不要（黒背景のまま使用）
+                processed_images = images
+                skip_background_removal = True
+            except Exception as e:
+                logger.error(f"Failed to generate emo images: {str(e)}")
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Failed to generate emo images: {str(e)}"
+                )
+        else:
+            # 通常モード
+            logger.info(f"Generating images for character: {request.character.character_id}")
+            
+            # 4つの表情バリエーションを順次生成（簡略化版）
+            try:
+                logger.info("Generating 4 expression variations with simplified data")
+                
+                # 簡略化された形式用の画像生成関数を呼び出し
+                images = generate_images_with_vertex_simple(request.character)
+                logger.info(f"Successfully generated {len(images)} images")
+                skip_background_removal = False
         except Exception as e:
             logger.error(f"Failed to generate images: {str(e)}")
             raise HTTPException(
@@ -808,16 +948,17 @@ async def generate_images_simple(request: SimpleGenerateRequest):
                 detail=f"Failed to generate images: {str(e)}"
             )
         
-        # グリーンバック除去
-        processed_images = []
-        for i, img_bytes in enumerate(images):
-            try:
-                processed = remove_green_background(img_bytes)
-                processed_images.append(processed)
-                logger.info(f"Removed green background from image {i+1}")
-            except Exception as e:
-                logger.warning(f"Green background removal failed for image {i}: {str(e)}")
-                processed_images.append(img_bytes)
+        # グリーンバック除去（通常モードのみ）
+        if not skip_background_removal:
+            processed_images = []
+            for i, img_bytes in enumerate(images):
+                try:
+                    processed = remove_green_background(img_bytes)
+                    processed_images.append(processed)
+                    logger.info(f"Removed green background from image {i+1}")
+                except Exception as e:
+                    logger.warning(f"Green background removal failed for image {i}: {str(e)}")
+                    processed_images.append(img_bytes)
         
         # 返却形式に応じて処理
         if request.return_type == "base64_list":
