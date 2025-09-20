@@ -151,9 +151,9 @@ def request_gemini_image(
     effective_modalities = response_modalities if response_modalities else ["TEXT", "IMAGE"]
 
     generation_config: Dict[str, Any] = {
-        "temperature": 0.4,
-        "topP": 0.8,
-        "topK": 32,
+        "temperature": 0.3,  # Lower temperature for more consistent results
+        "topP": 0.85,  # Slightly higher for better quality
+        "topK": 40,  # Increased for more options
         "candidateCount": 1,
         "seed": seed,
         # "responseMimeType": "image/png",  # Not supported for image generation
@@ -291,7 +291,7 @@ def generate_images_with_vertex_simple(character: SimpleCharacter) -> List[bytes
             credentials.refresh(Request())
             logger.info(f"Token acquired: {bool(getattr(credentials, 'token', None))}")
 
-        negative_prompt = "low quality, blurry, watermark, text, signature, multiple people, inconsistent character, white background, green outline, green edge, green spill, green fringe, color bleeding"
+        negative_prompt = "low quality, blurry, dark, underexposed, dim lighting, watermark, text, signature, multiple people, inconsistent character, white background, green outline, green edge, green spill, green fringe, green glow, green halo, chromatic aberration, color bleeding, color fringing, artifacts around edges, fuzzy edges, blurred edges"
 
         expressions = [
             ("ニュートラル", """
@@ -368,7 +368,7 @@ def generate_images_with_vertex(character: Character) -> List[bytes]:
         if credentials and hasattr(credentials, 'refresh'):
             credentials.refresh(Request())
 
-        negative_prompt = "low quality, blurry, watermark, text, signature, multiple people, inconsistent character, white background, green outline, green edge, green spill, green fringe, color bleeding"
+        negative_prompt = "low quality, blurry, dark, underexposed, dim lighting, watermark, text, signature, multiple people, inconsistent character, white background, green outline, green edge, green spill, green fringe, green glow, green halo, chromatic aberration, color bleeding, color fringing, artifacts around edges, fuzzy edges, blurred edges"
 
         expressions = [
             ("ニュートラル", """
@@ -475,20 +475,24 @@ def create_simple_prompt_without_expression(character: SimpleCharacter) -> str:
 
 【重要】背景は均一なクロマキーグリーン (pure chroma key green background, RGB(0,255,0), #00FF00)。
 キャラクターの輪郭線は背景から完全に独立し、グリーンのにじみや反射は一切なし。
-Clean edge separation between character and green screen. No green color spill on character.
+Clean, sharp edge separation between character and green screen. No green color spill, fringing or halo around character.
+Bright, well-lit character with high-key lighting to prevent dark/underexposed results.
+Ensure character is bright and clearly visible with good contrast against green background.
 質感テクスチャや落ち影は一切入れない。全身が頭からつま先までフレーム内に完全に収まること。
 
 【色調（数値を使わない指定）】
-overall color grading: pale tones, light grayish tones, soft muted pastel tones.
-airy and slightly hazy atmosphere, emotional pastel look.
-no vivid or highly saturated colors, no harsh contrast.
-low-contrast tonal range, avoid crushed blacks and clipped whites.
+overall color grading: bright pale tones, light grayish tones, soft muted pastel tones.
+airy and bright atmosphere, emotional pastel look with good visibility.
+no vivid or highly saturated colors, but maintain sufficient brightness.
+medium-contrast tonal range for clear visibility, avoid crushed blacks and maintain bright whites.
+Ensure overall bright exposure (high-key lighting) to prevent dark or muddy results.
 
 【線（輪郭）】
-outline color: soft, desaturated cool gray; not pure black.
-outer contour lines: slightly bolder to hold silhouette.
+outline color: clear, desaturated cool gray; not pure black but visible against green.
+outer contour lines: bold and clean to create sharp silhouette against green background.
 inner facial/detail lines: finer and lighter gray.
-consistent, clean, thin lines; no sketchy strokes or messy hatching.
+consistent, clean, sharp lines with no fuzzy edges; no sketchy strokes or messy hatching.
+Ensure crisp, well-defined edges for clean chromakey extraction.
 
 【ライティング】
 soft, diffused frontal key light.
@@ -553,20 +557,24 @@ def create_base_prompt_without_expression(character: Character) -> str:
 
 【重要】背景は均一なクロマキーグリーン (pure chroma key green background, RGB(0,255,0), #00FF00)。
 キャラクターの輪郭線は背景から完全に独立し、グリーンのにじみや反射は一切なし。
-Clean edge separation between character and green screen. No green color spill on character.
+Clean, sharp edge separation between character and green screen. No green color spill, fringing or halo around character.
+Bright, well-lit character with high-key lighting to prevent dark/underexposed results.
+Ensure character is bright and clearly visible with good contrast against green background.
 質感テクスチャや落ち影は一切入れない。全身が頭からつま先までフレーム内に完全に収まること。
 
 【色調（数値を使わない指定）】
-overall color grading: pale tones, light grayish tones, soft muted pastel tones.
-airy and slightly hazy atmosphere, emotional pastel look.
-no vivid or highly saturated colors, no harsh contrast.
-low-contrast tonal range, avoid crushed blacks and clipped whites.
+overall color grading: bright pale tones, light grayish tones, soft muted pastel tones.
+airy and bright atmosphere, emotional pastel look with good visibility.
+no vivid or highly saturated colors, but maintain sufficient brightness.
+medium-contrast tonal range for clear visibility, avoid crushed blacks and maintain bright whites.
+Ensure overall bright exposure (high-key lighting) to prevent dark or muddy results.
 
 【線（輪郭）】
-outline color: soft, desaturated cool gray; not pure black.
-outer contour lines: slightly bolder to hold silhouette.
+outline color: clear, desaturated cool gray; not pure black but visible against green.
+outer contour lines: bold and clean to create sharp silhouette against green background.
 inner facial/detail lines: finer and lighter gray.
-consistent, clean, thin lines; no sketchy strokes or messy hatching.
+consistent, clean, sharp lines with no fuzzy edges; no sketchy strokes or messy hatching.
+Ensure crisp, well-defined edges for clean chromakey extraction.
 
 【ライティング】
 soft, diffused frontal key light.
