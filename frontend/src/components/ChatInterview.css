@@ -2,23 +2,24 @@
   position: relative;
   display: flex;
   flex-direction: column;
+  justify-content: flex-end;
   gap: clamp(20px, 4vw, 32px);
-  padding: clamp(20px, 4vw, 36px);
-  border-radius: 28px;
+  padding: clamp(18px, 4vw, 34px);
+  border-radius: 32px;
   background-color: #050515;
   background-image: url('../assets/chat-bg-mobile.png');
   background-size: cover;
   background-position: center;
   color: #e9faff;
   overflow: hidden;
-  min-height: min(92vh, 860px);
-  box-shadow: 0 24px 60px rgba(3, 7, 33, 0.75);
+  min-height: 100vh;
+  box-shadow: 0 24px 60px rgba(3, 7, 33, 0.65);
 }
 
 @media (min-aspect-ratio: 4/3) {
   .chat-interview.chat-interview--detailed {
     background-image: url('../assets/chat-bg-desktop.png');
-    min-height: clamp(720px, 84vh, 980px);
+    min-height: 100vh;
   }
 }
 
@@ -26,11 +27,10 @@
   content: '';
   position: absolute;
   inset: 0;
-  background: radial-gradient(circle at 25% 20%, rgba(26, 237, 255, 0.25), transparent 45%),
-              radial-gradient(circle at 80% 35%, rgba(255, 102, 255, 0.24), transparent 50%),
-              linear-gradient(140deg, rgba(6, 10, 40, 0.88), rgba(6, 2, 24, 0.85));
+  background: linear-gradient(180deg, rgba(3, 8, 26, 0.12) 0%, rgba(3, 10, 34, 0.58) 70%, rgba(3, 10, 34, 0.88) 100%),
+              radial-gradient(circle at 70% 35%, rgba(255, 102, 255, 0.18), transparent 55%),
+              radial-gradient(circle at 20% 25%, rgba(0, 255, 255, 0.16), transparent 48%);
   z-index: 0;
-  mix-blend-mode: screen;
 }
 
 .chat-interview.chat-interview--detailed > * {
@@ -51,16 +51,16 @@
 .chat-interview.chat-interview--detailed .chat-history,
 .chat-interview.chat-interview--detailed .current-question,
 .chat-interview.chat-interview--detailed .interview-complete {
-  background: linear-gradient(135deg, rgba(8, 12, 42, 0.7), rgba(14, 8, 38, 0.72));
-  border: 1px solid rgba(0, 255, 255, 0.18);
-  border-radius: 24px;
+  background: rgba(8, 14, 44, 0.55);
+  border: 1px solid rgba(0, 255, 255, 0.16);
+  border-radius: 26px;
   padding: clamp(18px, 3vw, 28px);
-  backdrop-filter: blur(18px);
-  box-shadow: 0 16px 42px rgba(0, 12, 60, 0.32);
+  backdrop-filter: blur(16px);
+  box-shadow: 0 16px 42px rgba(0, 12, 60, 0.28);
 }
 
 .chat-interview.chat-interview--detailed .chat-history {
-  max-height: clamp(260px, 45vh, 420px);
+  max-height: clamp(260px, 44vh, 380px);
   overflow-y: auto;
   display: flex;
   flex-direction: column;
@@ -276,8 +276,8 @@
 
 @media (max-width: 768px) {
   .chat-interview.chat-interview--detailed {
-    padding: clamp(16px, 5vw, 24px);
-    border-radius: 20px;
+    padding: clamp(16px, 6vw, 26px);
+    border-radius: 26px;
   }
 
   .chat-interview.chat-interview--detailed .chat-history,
@@ -294,7 +294,7 @@
 
 @media (max-width: 520px) {
   .chat-interview.chat-interview--detailed {
-    border-radius: 16px;
+    border-radius: 18px;
     padding: 14px;
   }
 
