@@ -18,11 +18,15 @@ from google.auth.transport.requests import Request
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Vertex AI設定
-PROJECT_ID = "makeillust"
-LOCATION = "us-central1"  # Gemini 画像プレビューは現状 us-central1 のみサポート
+# Gemini設定
+PROJECT_ID = os.getenv("GOOGLE_PROJECT_ID", "makeillust")
+LOCATION = "global"
 MODEL_ID = "gemini-2.5-flash-image-preview"
-ENDPOINT = f"https://{LOCATION}-aiplatform.googleapis.com/v1/projects/{PROJECT_ID}/locations/{LOCATION}/publishers/google/models/{MODEL_ID}:predict"
+
+GENAI_ENDPOINT = (
+    f"https://aiplatform.googleapis.com/v1/projects/{PROJECT_ID}/locations/{LOCATION}/"
+    f"publishers/google/models/{MODEL_ID}:generateContent"
+)
 
 # 認証情報を取得
 credentials = None
@@ -89,73 +93,122 @@ def health_check():
     }
 
 def request_gemini_image(
-    access_token: str,
     prompt: str,
     seed: int,
     base_image: Optional[bytes] = None,
     negative_prompt: Optional[str] = None,
+    response_modalities: Optional[List[str]] = None,
 ) -> bytes:
     """Gemini 2.5 Flash Image Previewに画像生成/編集をリクエスト"""
 
-    instance: Dict[str, Any] = {
-        "prompt": prompt,
-    }
-
-    if base_image:
-        instance["image"] = {
-            "bytesBase64Encoded": base64.b64encode(base_image).decode("utf-8"),
-            "mimeType": "image/png"
-        }
-
-    parameters: Dict[str, Any] = {
-        "sampleCount": 1,
-        "aspectRatio": "9:16",
-        "addWatermark": False,
-        "seed": seed,
-    }
-
+    prompt_with_negative = prompt
     if negative_prompt:
-        parameters["negativePrompt"] = negative_prompt
-
-    request_body = {
-        "instances": [instance],
-        "parameters": parameters
-    }
+        prompt_with_negative = (
+            f"{prompt}\n\n[Negative Prompt]\n"
+            f"{negative_prompt}"
+        )
 
     log_payload = {
-        "prompt_preview": prompt[:200],
+        "prompt_preview": prompt_with_negative[:200],
         "has_base_image": bool(base_image),
         "seed": seed,
-        "negative_prompt": negative_prompt,
-        "parameters": {k: v for k, v in parameters.items() if k != "negativePrompt"}
+        "location": LOCATION,
     }
     logger.info(f"Gemini image request payload: {json.dumps(log_payload, ensure_ascii=False)}")
 
+    if not credentials:
+        raise Exception("Google Cloud default credentials are not configured")
+
+    if hasattr(credentials, 'refresh'):
+        credentials.refresh(Request())
+
+    token = credentials.token
+    if not token:
+        raise Exception("Failed to acquire access token for Gemini API")
+
+    parts: List[Dict[str, Any]] = []
+    if base_image:
+        parts.append(
+            {
+                "inline_data": {
+                    "mime_type": "image/png",
+                    "data": base64.b64encode(base_image).decode("utf-8"),
+                }
+            }
+        )
+    parts.append({"text": prompt_with_negative})
+
+    generation_config: Dict[str, Any] = {
+        "temperature": 0.4,
+        "top_p": 0.8,
+        "top_k": 32,
+        "candidate_count": 1,
+        "seed": seed,
+        "response_mime_type": "image/png",
+    }
+
+    if response_modalities:
+        generation_config["response_modalities"] = response_modalities
+    else:
+        generation_config["response_modalities"] = ["IMAGE"]
+
+    request_body = {
+        "contents": [
+            {
+                "role": "user",
+                "parts": parts,
+            }
+        ],
+        "generation_config": generation_config,
+        "safety_settings": [
+            {
+                "category": "HARM_CATEGORY_DANGEROUS",
+                "threshold": "BLOCK_ONLY_HIGH"
+            },
+            {
+                "category": "HARM_CATEGORY_HATE_SPEECH",
+                "threshold": "BLOCK_ONLY_HIGH"
+            },
+            {
+                "category": "HARM_CATEGORY_HARASSMENT",
+                "threshold": "BLOCK_ONLY_HIGH"
+            },
+            {
+                "category": "HARM_CATEGORY_SEXUAL",
+                "threshold": "BLOCK_ONLY_HIGH"
+            }
+        ],
+    }
+
     headers = {
-        "Authorization": f"Bearer {access_token}",
+        "Authorization": f"Bearer {token}",
         "Content-Type": "application/json"
     }
 
     response = requests.post(
-        ENDPOINT,
+        GENAI_ENDPOINT,
         headers=headers,
         json=request_body,
-        timeout=120
+        timeout=120,
     )
 
     if response.status_code != 200:
-        logger.error(f"Gemini image API error: {response.status_code} - {response.text}")
+        logger.error(
+            "Gemini generateContent error: %s - %s",
+            response.status_code,
+            response.text,
+        )
         raise Exception(f"Gemini API error: {response.status_code} - {response.text}")
 
     result = response.json()
-    if "predictions" in result and result["predictions"]:
-        prediction = result["predictions"][0]
-        if "bytesBase64Encoded" in prediction:
-            return base64.b64decode(prediction["bytesBase64Encoded"])
-        if "image" in prediction:
-            return base64.b64decode(prediction["image"])
+    for candidate in result.get("candidates", []):
+        parts = candidate.get("content", {}).get("parts", [])
+        for part in parts:
+            data = part.get("inline_data")
+            if data and data.get("mime_type", "").startswith("image"):
+                return base64.b64decode(data["data"])
 
-    raise Exception(f"Unexpected Gemini image response: {result}")
+    raise Exception(f"Unexpected Gemini response: {result}")
 
 def generate_images_with_vertex_simple(character: SimpleCharacter) -> List[bytes]:
     """簡略化されたキャラクター情報で表情差分ごとに1枚ずつ生成"""
@@ -163,10 +216,8 @@ def generate_images_with_vertex_simple(character: SimpleCharacter) -> List[bytes
         raise HTTPException(status_code=500, detail="Credentials not configured")
 
     try:
-        if hasattr(credentials, 'refresh'):
+        if credentials and hasattr(credentials, 'refresh'):
             credentials.refresh(Request())
-
-        access_token = credentials.token
 
         negative_prompt = "low quality, blurry, watermark, text, signature, multiple people, inconsistent character, white background"
 
@@ -199,7 +250,6 @@ def generate_images_with_vertex_simple(character: SimpleCharacter) -> List[bytes
         first_prompt = f"{base_prompt}\n{first_block}"
         logger.info(f"Creating base image for expression: {first_name}")
         base_image = request_gemini_image(
-            access_token,
             first_prompt,
             character.seed,
             negative_prompt=negative_prompt,
@@ -212,7 +262,6 @@ def generate_images_with_vertex_simple(character: SimpleCharacter) -> List[bytes
             edit_prompt = build_expression_edit_prompt(base_prompt, expression_block)
             try:
                 edited = request_gemini_image(
-                    access_token,
                     edit_prompt,
                     character.seed,
                     base_image=base_image,
@@ -226,7 +275,6 @@ def generate_images_with_vertex_simple(character: SimpleCharacter) -> List[bytes
                 )
                 fallback_prompt = f"{base_prompt}\n{expression_block}"
                 edited = request_gemini_image(
-                    access_token,
                     fallback_prompt,
                     character.seed,
                     negative_prompt=negative_prompt,
@@ -240,15 +288,13 @@ def generate_images_with_vertex_simple(character: SimpleCharacter) -> List[bytes
         raise HTTPException(status_code=500, detail=f"Image generation failed: {str(e)}")
 
 def generate_images_with_vertex(character: Character) -> List[bytes]:
-    """Vertex AI Imagen 4.0で表情差分ごとに1枚ずつ生成"""
+    """Gemini 2.5 Flash Image Previewで表情差分を生成"""
     if not credentials:
         raise HTTPException(status_code=500, detail="Credentials not configured")
     
     try:
-        if hasattr(credentials, 'refresh'):
+        if credentials and hasattr(credentials, 'refresh'):
             credentials.refresh(Request())
-
-        access_token = credentials.token
 
         negative_prompt = "low quality, blurry, watermark, text, signature, multiple people, inconsistent character, white background"
 
@@ -281,7 +327,6 @@ def generate_images_with_vertex(character: Character) -> List[bytes]:
         first_prompt = f"{base_prompt}\n{first_block}"
         logger.info(f"Creating base image for expression: {first_name}")
         base_image = request_gemini_image(
-            access_token,
             first_prompt,
             character.seed,
             negative_prompt=negative_prompt,
@@ -294,7 +339,6 @@ def generate_images_with_vertex(character: Character) -> List[bytes]:
             edit_prompt = build_expression_edit_prompt(base_prompt, expression_block)
             try:
                 edited = request_gemini_image(
-                    access_token,
                     edit_prompt,
                     character.seed,
                     base_image=base_image,
@@ -308,7 +352,6 @@ def generate_images_with_vertex(character: Character) -> List[bytes]:
                 )
                 fallback_prompt = f"{base_prompt}\n{expression_block}"
                 edited = request_gemini_image(
-                    access_token,
                     fallback_prompt,
                     character.seed,
                     negative_prompt=negative_prompt,
