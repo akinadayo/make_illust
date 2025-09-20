@@ -19,7 +19,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Gemini設定 - 環境変数を使わず直接指定
-PROJECT_ID = "makeillust"  # プロジェクトIDを直接指定
+PROJECT_ID = "812480532939"  # 実際のGCPプロジェクトIDを直接指定
 LOCATION = "global"
 MODEL_ID = "gemini-2.5-flash-image-preview"
 
@@ -113,18 +113,27 @@ def request_gemini_image(
         "has_base_image": bool(base_image),
         "seed": seed,
         "location": LOCATION,
+        "project_id": PROJECT_ID,
+        "endpoint": GENAI_ENDPOINT[:100]
     }
     logger.info(f"Gemini image request payload: {json.dumps(log_payload, ensure_ascii=False)}")
 
     if not credentials:
+        logger.error("Credentials is None in request_gemini_image")
         raise Exception("Google Cloud default credentials are not configured")
 
     if hasattr(credentials, 'refresh'):
+        logger.info("Refreshing credentials in request_gemini_image...")
         credentials.refresh(Request())
+        logger.info(f"After refresh, has token: {hasattr(credentials, 'token')}")
 
-    token = credentials.token
+    token = getattr(credentials, 'token', None)
     if not token:
+        logger.error(f"Failed to get token. Credentials type: {type(credentials).__name__}")
+        logger.error(f"Credentials attributes: {dir(credentials)}")
         raise Exception("Failed to acquire access token for Gemini API")
+    
+    logger.info(f"Token acquired successfully (length: {len(token)}...{token[-10:] if len(token) > 10 else token})")
 
     parts: List[Dict[str, Any]] = []
     if base_image:
@@ -181,6 +190,9 @@ def request_gemini_image(
         "Content-Type": "application/json"
     }
 
+    logger.info(f"Sending request to Gemini API endpoint: {GENAI_ENDPOINT}")
+    logger.info(f"Request headers (without token): Content-Type: {headers.get('Content-Type')}")
+    
     response = requests.post(
         GENAI_ENDPOINT,
         headers=headers,
@@ -188,13 +200,21 @@ def request_gemini_image(
         timeout=120,
     )
 
+    logger.info(f"Gemini API response status: {response.status_code}")
+    
     if response.status_code != 200:
         logger.error(
             "Gemini generateContent error: %s - %s",
             response.status_code,
-            response.text,
+            response.text[:1000],  # Limit error text to 1000 chars
         )
-        raise Exception(f"Gemini API error: {response.status_code} - {response.text}")
+        # Try to parse error for more details
+        try:
+            error_json = response.json()
+            logger.error(f"Error details: {json.dumps(error_json, indent=2, ensure_ascii=False)}")
+        except:
+            pass
+        raise Exception(f"Gemini API error: {response.status_code} - {response.text[:500]}")
 
     result = response.json()
     for candidate in result.get("candidates", []):
@@ -209,11 +229,17 @@ def request_gemini_image(
 def generate_images_with_vertex_simple(character: SimpleCharacter) -> List[bytes]:
     """簡略化されたキャラクター情報で表情差分ごとに1枚ずつ生成"""
     if not credentials:
+        logger.error("Credentials are None - not configured at all")
         raise HTTPException(status_code=500, detail="Credentials not configured")
 
     try:
+        logger.info(f"Starting image generation for character {character.character_id}")
+        logger.info(f"Credentials type: {type(credentials).__name__}")
+        
         if credentials and hasattr(credentials, 'refresh'):
+            logger.info("Refreshing credentials...")
             credentials.refresh(Request())
+            logger.info(f"Token acquired: {bool(getattr(credentials, 'token', None))}")
 
         negative_prompt = "low quality, blurry, watermark, text, signature, multiple people, inconsistent character, white background"
 
@@ -572,14 +598,23 @@ Style: Japanese anime/manga illustration, soft pastel colors, clean lines, profe
 async def generate_images_simple(request: SimpleGenerateRequest):
     """簡略化されたキャラクター画像を生成するエンドポイント"""
     try:
+        logger.info("========== /api/generate/simple endpoint called ==========")
+        logger.info(f"Request data: {request.json()}")
+        
         # 認証情報の確認
+        logger.info(f"Checking credentials: {bool(credentials)}")
+        logger.info(f"Credentials type: {type(credentials).__name__ if credentials else 'None'}")
+        
         if not credentials:
-            logger.error("Credentials are not configured")
+            logger.error("Credentials are not configured at endpoint")
             raise HTTPException(
                 status_code=500,
                 detail="Authentication is not configured properly."
             )
         
+        logger.info(f"PROJECT_ID: {PROJECT_ID}")
+        logger.info(f"LOCATION: {LOCATION}")
+        logger.info(f"MODEL_ID: {MODEL_ID}")
         logger.info(f"Generating images for character: {request.character.character_id}")
         
         # 4つの表情バリエーションを順次生成（簡略化版）
