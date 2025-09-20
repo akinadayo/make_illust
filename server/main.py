@@ -154,7 +154,7 @@ def request_gemini_image(
         "candidateCount": 1,
         "seed": seed,
         "responseMimeType": "image/png",
-        "responseModalities": response_modalities or ["TEXT", "IMAGE"],
+        "responseModalities": ["IMAGE"],
     }
 
     request_body = {
