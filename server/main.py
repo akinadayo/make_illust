@@ -4,6 +4,7 @@ import base64
 import zipfile
 import logging
 import json
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from fastapi import FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
@@ -328,17 +329,20 @@ def generate_images_with_vertex_simple(character: SimpleCharacter) -> List[bytes
         )
         images.append(base_image)
 
-        # 残り3枚: 参照画像を使って表情のみ変更
-        for expression_name, expression_block in expressions[1:]:
-            logger.info(f"Editing base image for expression: {expression_name}")
+        # 残り3枚: 並列処理で参照画像を使って表情のみ変更
+        def generate_expression(expression_data):
+            expression_name, expression_block = expression_data
+            logger.info(f"Starting parallel generation for expression: {expression_name}")
             edit_prompt = build_expression_edit_prompt(base_prompt, expression_block)
             try:
-                edited = request_gemini_image(
+                result = request_gemini_image(
                     edit_prompt,
                     character.seed,
                     base_image=base_image,
                     negative_prompt=negative_prompt,
                 )
+                logger.info(f"Successfully generated expression: {expression_name}")
+                return result
             except Exception as edit_error:
                 logger.warning(
                     "Gemini edit failed for %s, fallback to fresh generation: %s",
@@ -346,12 +350,40 @@ def generate_images_with_vertex_simple(character: SimpleCharacter) -> List[bytes
                     edit_error,
                 )
                 fallback_prompt = f"{base_prompt}\n{expression_block}"
-                edited = request_gemini_image(
+                return request_gemini_image(
                     fallback_prompt,
                     character.seed,
                     negative_prompt=negative_prompt,
                 )
-            images.append(edited)
+        
+        # ThreadPoolExecutorで並列実行（最大3スレッドで同時実行）
+        logger.info("Starting parallel generation for 3 expression variations")
+        with ThreadPoolExecutor(max_workers=3) as executor:
+            # 各表情の生成タスクをサブミット
+            future_to_expression = {
+                executor.submit(generate_expression, exp_data): idx 
+                for idx, exp_data in enumerate(expressions[1:], start=1)
+            }
+            
+            # 結果を順番どおりに格納するための辞書
+            results = {}
+            
+            # 完了した順に結果を取得
+            for future in as_completed(future_to_expression):
+                idx = future_to_expression[future]
+                try:
+                    result = future.result(timeout=120)  # 120秒のタイムアウト
+                    results[idx] = result
+                    logger.info(f"Expression {idx} generated successfully")
+                except Exception as e:
+                    logger.error(f"Expression {idx} generation failed: {e}")
+                    raise HTTPException(status_code=500, detail=f"Failed to generate expression {idx}: {str(e)}")
+            
+            # 順番どおりにimagesリストに追加
+            for idx in sorted(results.keys()):
+                images.append(results[idx])
+        
+        logger.info(f"All {len(images)} images generated successfully")
 
         return images
 
@@ -405,17 +437,20 @@ def generate_images_with_vertex(character: Character) -> List[bytes]:
         )
         images.append(base_image)
 
-        # 残り3枚: 参照画像を使って表情のみ変更
-        for expression_name, expression_block in expressions[1:]:
-            logger.info(f"Editing base image for expression: {expression_name}")
+        # 残り3枚: 並列処理で参照画像を使って表情のみ変更
+        def generate_expression(expression_data):
+            expression_name, expression_block = expression_data
+            logger.info(f"Starting parallel generation for expression: {expression_name}")
             edit_prompt = build_expression_edit_prompt(base_prompt, expression_block)
             try:
-                edited = request_gemini_image(
+                result = request_gemini_image(
                     edit_prompt,
                     character.seed,
                     base_image=base_image,
                     negative_prompt=negative_prompt,
                 )
+                logger.info(f"Successfully generated expression: {expression_name}")
+                return result
             except Exception as edit_error:
                 logger.warning(
                     "Gemini edit failed for %s, fallback to fresh generation: %s",
@@ -423,12 +458,40 @@ def generate_images_with_vertex(character: Character) -> List[bytes]:
                     edit_error,
                 )
                 fallback_prompt = f"{base_prompt}\n{expression_block}"
-                edited = request_gemini_image(
+                return request_gemini_image(
                     fallback_prompt,
                     character.seed,
                     negative_prompt=negative_prompt,
                 )
-            images.append(edited)
+        
+        # ThreadPoolExecutorで並列実行（最大3スレッドで同時実行）
+        logger.info("Starting parallel generation for 3 expression variations")
+        with ThreadPoolExecutor(max_workers=3) as executor:
+            # 各表情の生成タスクをサブミット
+            future_to_expression = {
+                executor.submit(generate_expression, exp_data): idx 
+                for idx, exp_data in enumerate(expressions[1:], start=1)
+            }
+            
+            # 結果を順番どおりに格納するための辞書
+            results = {}
+            
+            # 完了した順に結果を取得
+            for future in as_completed(future_to_expression):
+                idx = future_to_expression[future]
+                try:
+                    result = future.result(timeout=120)  # 120秒のタイムアウト
+                    results[idx] = result
+                    logger.info(f"Expression {idx} generated successfully")
+                except Exception as e:
+                    logger.error(f"Expression {idx} generation failed: {e}")
+                    raise HTTPException(status_code=500, detail=f"Failed to generate expression {idx}: {str(e)}")
+            
+            # 順番どおりにimagesリストに追加
+            for idx in sorted(results.keys()):
+                images.append(results[idx])
+        
+        logger.info(f"All {len(images)} images generated successfully")
 
         return images
 
