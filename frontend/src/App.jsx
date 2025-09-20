@@ -1,9 +1,11 @@
 import { useState } from 'react'
 import SimpleChatInterview from './components/SimpleChatInterview'
+import EmoMode from './components/EmoMode'
 import ImagePreview from './components/ImagePreview'
 import './App.css'
 
 function App() {
+  const [mode, setMode] = useState('normal') // 'normal' or 'emo'
   const [characterData, setCharacterData] = useState({
     character_id: `char_${Date.now()}`,
     seed: 123456789,
@@ -52,21 +54,47 @@ function App() {
   const [generatedImages, setGeneratedImages] = useState([])
   const [isGenerating, setIsGenerating] = useState(false)
 
+  const switchMode = (newMode) => {
+    setMode(newMode)
+    setGeneratedImages([]) // Clear images when switching modes
+  }
+
   return (
     <div className="app">
       <header className="app-header">
         <h1>キャラクター立ち絵ジェネレーター</h1>
-        <p>チャットで質問に答えて、5つの表情を一括生成</p>
+        <div className="mode-switcher">
+          <button 
+            className={`mode-btn ${mode === 'normal' ? 'active' : ''}`}
+            onClick={() => switchMode('normal')}
+          >
+            通常モード
+          </button>
+          <button 
+            className={`mode-btn ${mode === 'emo' ? 'active' : ''}`}
+            onClick={() => switchMode('emo')}
+          >
+            エモモード
+          </button>
+        </div>
       </header>
 
       <div className="app-content">
-        <SimpleChatInterview 
-          characterData={characterData}
-          setCharacterData={setCharacterData}
-          setGeneratedImages={setGeneratedImages}
-          isGenerating={isGenerating}
-          setIsGenerating={setIsGenerating}
-        />
+        {mode === 'normal' ? (
+          <SimpleChatInterview 
+            characterData={characterData}
+            setCharacterData={setCharacterData}
+            setGeneratedImages={setGeneratedImages}
+            isGenerating={isGenerating}
+            setIsGenerating={setIsGenerating}
+          />
+        ) : (
+          <EmoMode
+            setGeneratedImages={setGeneratedImages}
+            isGenerating={isGenerating}
+            setIsGenerating={setIsGenerating}
+          />
+        )}
 
         {generatedImages.length > 0 && (
           <ImagePreview images={generatedImages} />

@@ -14,7 +14,7 @@
 .app-header h1 {
   color: #333;
   font-size: 28px;
-  margin: 0 0 10px 0;
+  margin: 0 0 20px 0;
   font-weight: 600;
 }
 
@@ -22,6 +22,43 @@
   color: #666;
   font-size: 14px;
   margin: 0;
+}
+
+.mode-switcher {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  margin-top: 20px;
+}
+
+.mode-btn {
+  padding: 10px 24px;
+  background: #f0f0f0;
+  border: 2px solid transparent;
+  border-radius: 25px;
+  color: #666;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  min-width: 120px;
+}
+
+.mode-btn:hover {
+  background: #e0e0e0;
+  transform: translateY(-2px);
+}
+
+.mode-btn.active {
+  background: linear-gradient(135deg, #00ffff 0%, #ff00ff 100%);
+  color: white;
+  border-color: transparent;
+  box-shadow: 0 4px 15px rgba(0, 255, 255, 0.3);
+}
+
+.mode-btn.active:hover {
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 6px 20px rgba(0, 255, 255, 0.4);
 }
 
 .app-content {
