@@ -95,38 +95,9 @@ const LandingPage = ({ onStart }) => {
     };
 
     const startParallaxAnimation = (config) => {
-        const animate = () => {
-            const elapsed = (Date.now() - startTimeRef.current) / 1000; // Elapsed time in seconds
-            
-            config.layers.forEach(layer => {
-                const element = document.getElementById(`layer-${layer.id}`);
-                if (!element) return;
-                
-                let transform = '';
-                
-                layer.animations.forEach(anim => {
-                    const value = Math.sin((elapsed * anim.frequency * 2 * Math.PI) + anim.phase) * anim.amplitude;
-                    
-                    switch(anim.type) {
-                        case 'translateX':
-                            transform += `translateX(${value}px) `;
-                            break;
-                        case 'translateY':
-                            transform += `translateY(${value}px) `;
-                            break;
-                        case 'scale':
-                            transform += `scale(${1 + value}) `;
-                            break;
-                    }
-                });
-                
-                element.style.transform = transform;
-            });
-            
-            animationFrameRef.current = requestAnimationFrame(animate);
-        };
-        
-        animate();
+        // 視差効果を無効化 - 単純な左右揺れは不要
+        // 静的な背景画像として表示
+        console.log('Parallax animation disabled - static background only');
     };
 
     const createParticle = () => {

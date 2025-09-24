@@ -273,51 +273,20 @@
     white-space: nowrap;
 }
 
-/* Animations */
+/* Animations - Parallax animations disabled */
+/* 
 @keyframes parallax-back {
-    0%, 100% {
-        transform: translate3d(0, 0, 0) scale(1.05);
-    }
-    25% {
-        transform: translate3d(-15px, -10px, 0) scale(1.08);
-    }
-    50% {
-        transform: translate3d(10px, -15px, 0) scale(1.1);
-    }
-    75% {
-        transform: translate3d(-10px, 5px, 0) scale(1.07);
-    }
+    // Removed - static background
 }
 
 @keyframes parallax-middle {
-    0%, 100% {
-        transform: translate3d(0, 0, 50px) scale(1);
-    }
-    25% {
-        transform: translate3d(20px, 10px, 50px) scale(1.02);
-    }
-    50% {
-        transform: translate3d(-15px, 20px, 50px) scale(1.03);
-    }
-    75% {
-        transform: translate3d(15px, -10px, 50px) scale(1.01);
-    }
+    // Removed - static background
 }
 
 @keyframes parallax-front {
-    0%, 100% {
-        transform: translate3d(0, 0, 100px) scale(1);
-    }
-    25% {
-        transform: translate3d(30px, 15px, 100px) scale(1.01);
-    }
-    50% {
-        transform: translate3d(-25px, 30px, 100px) scale(1.02);
-    }
-    75% {
-        transform: translate3d(25px, -15px, 100px) scale(1.01);
-    }
+    // Removed - static background
 }
+*/
 
 @keyframes shine {
     0% { background-position: 0% center; }
