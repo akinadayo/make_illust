@@ -1,0 +1,148 @@
+.parallax-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100vh;
+    overflow: hidden;
+    perspective: 1000px;
+    background: #000;
+}
+
+/* 視差レイヤー共通設定 */
+.parallax-layer {
+    position: absolute;
+    top: -10%;
+    left: -10%;
+    width: 120%;
+    height: 120%;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    transition: transform 0.1s ease-out;
+    will-change: transform;
+    transform-origin: center center;
+}
+
+/* 背景レイヤー（最も遠い） */
+.background-layer {
+    z-index: 1;
+    opacity: 0.8;
+}
+
+/* 中景レイヤー */
+.midground-layer {
+    z-index: 2;
+    opacity: 0.6;
+    mix-blend-mode: screen;
+}
+
+/* 前景レイヤー（被写体） */
+.foreground-layer {
+    z-index: 3;
+    opacity: 1;
+}
+
+/* 被写体マスク（検出された領域） */
+.subject-mask {
+    position: absolute;
+    border: 2px dashed rgba(255, 255, 255, 0.3);
+    background: rgba(255, 255, 255, 0.05);
+    pointer-events: none;
+    transition: all 0.3s ease;
+}
+
+/* コンテンツ（UI要素） */
+.parallax-content {
+    position: relative;
+    z-index: 10;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    pointer-events: none;
+}
+
+.parallax-title {
+    font-size: 4rem;
+    font-weight: bold;
+    color: white;
+    text-shadow: 
+        0 0 20px rgba(0, 0, 0, 0.8),
+        0 0 40px rgba(0, 0, 0, 0.6);
+    letter-spacing: 0.2em;
+    animation: glow 2s ease-in-out infinite;
+    pointer-events: auto;
+    cursor: pointer;
+    user-select: none;
+}
+
+@keyframes glow {
+    0%, 100% { opacity: 0.8; }
+    50% { opacity: 1; }
+}
+
+/* 深度情報表示 */
+.depth-indicator {
+    position: absolute;
+    bottom: 20px;
+    left: 20px;
+    color: white;
+    font-size: 0.8rem;
+    background: rgba(0, 0, 0, 0.5);
+    padding: 10px;
+    border-radius: 5px;
+    backdrop-filter: blur(10px);
+}
+
+.depth-info {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.mouse-pos {
+    color: #00ff00;
+    font-family: monospace;
+}
+
+/* モバイル対応 */
+@media (max-width: 768px) {
+    .parallax-title {
+        font-size: 2.5rem;
+        letter-spacing: 0.1em;
+    }
+    
+    .parallax-layer {
+        /* モバイルでは視差効果を控えめに */
+        transition: transform 0.2s ease-out;
+    }
+    
+    .depth-indicator {
+        font-size: 0.7rem;
+        bottom: 10px;
+        left: 10px;
+    }
+}
+
+/* 高解像度ディスプレイ対応 */
+@media (min-resolution: 2dppx) {
+    .parallax-layer {
+        image-rendering: -webkit-optimize-contrast;
+        image-rendering: crisp-edges;
+    }
+}
+
+/* アクセシビリティ：動きを減らす設定 */
+@media (prefers-reduced-motion: reduce) {
+    .parallax-layer {
+        transition: none !important;
+        transform: none !important;
+    }
+    
+    .parallax-title {
+        animation: none;
+    }
+}

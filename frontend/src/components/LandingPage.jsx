@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import './LandingPage.css';
+import ParallaxLanding from './ParallaxLanding';
 
 const LandingPage = ({ onStart }) => {
     const [isLoading, setIsLoading] = useState(true);
@@ -95,9 +96,9 @@ const LandingPage = ({ onStart }) => {
     };
 
     const startParallaxAnimation = (config) => {
-        // 視差効果を無効化 - 単純な左右揺れは不要
-        // 静的な背景画像として表示
-        console.log('Parallax animation disabled - static background only');
+        // マウス追従型の視差効果に移行
+        // ParallaxLandingコンポーネントで実装
+        console.log('Mouse-based parallax enabled');
     };
 
     const createParticle = () => {
@@ -250,6 +251,14 @@ const LandingPage = ({ onStart }) => {
         });
     };
 
+    // 新しいParallaxLandingコンポーネントを使用
+    const useNewParallax = true;
+    
+    if (useNewParallax) {
+        return <ParallaxLanding backgroundImage={backgroundImage} onStart={onStart} />;
+    }
+    
+    // 旧実装（フォールバック用）
     return (
         <div className="landing-page">
             {/* Background layers */}
