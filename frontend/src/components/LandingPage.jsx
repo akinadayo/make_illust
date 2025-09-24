@@ -248,36 +248,17 @@ const LandingPage = ({ onStart }) => {
             );
         }
 
-        // Render depth-based layers
+        // Render depth-based layers - only show the main background image once
         const layers = depthConfig.depth_layers?.layers || [];
+        
+        // Only render the background image on the first (background) layer
         return layers.map((layer, index) => {
+            const isBackground = index === 0;
             const isLast = index === layers.length - 1;
             
-            if (isLast) {
-                // Special rendering for foreground layer
-                return (
-                    <div
-                        key={layer.name}
-                        id={`layer-${layer.name}`}
-                        className="bg-layer-depth-front"
-                        style={{
-                            position: 'absolute',
-                            bottom: '0',
-                            left: '-5%',
-                            width: '110%',
-                            height: '50%',
-                            backgroundImage: `url('${backgroundImage}')`,
-                            backgroundPosition: 'center bottom',
-                            backgroundSize: 'cover',
-                            maskImage: `linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.5) 30%, black 60%)`,
-                            WebkitMaskImage: `linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.5) 30%, black 60%)`,
-                            filter: `blur(${layer.blur || 0}px) drop-shadow(0 -20px 30px rgba(0,0,0,0.2))`,
-                            opacity: layer.opacity,
-                            zIndex: index + 1,
-                            willChange: 'transform'
-                        }}
-                    />
-                );
+            if (!isBackground) {
+                // Don't render additional layers - prevents duplicate images
+                return null;
             }
             
             return (
@@ -287,11 +268,10 @@ const LandingPage = ({ onStart }) => {
                     className="bg-image bg-layer-depth active"
                     style={{
                         backgroundImage: `url('${backgroundImage}')`,
-                        filter: `blur(${layer.blur || 0}px) brightness(${0.8 + (index * 0.1)}) saturate(1.2)`,
-                        opacity: layer.opacity,
-                        transform: `scale(${layer.scale})`,
-                        zIndex: index + 1,
-                        mixBlendMode: index === 1 ? 'screen' : 'normal',
+                        filter: `blur(0px)`,
+                        opacity: 1,
+                        transform: 'scale(1)',
+                        zIndex: 1,
                         willChange: 'transform'
                     }}
                 />
