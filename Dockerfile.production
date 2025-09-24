@@ -25,6 +25,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY server ./server
 
+# Copy haikei2.png for depth estimation
+COPY haikei2.png ./
+
 # Cloud Run will set PORT environment variable
 # Don't set it here, use it dynamically
 EXPOSE 8080
