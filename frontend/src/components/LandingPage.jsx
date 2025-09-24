@@ -35,8 +35,11 @@ const LandingPage = ({ onStart }) => {
 
     const initializeDepthParallax = async () => {
         try {
+            // Use production API URL if available, otherwise localhost
+            const apiUrl = import.meta.env.VITE_API_URL || 'https://standing-set-backend-812480532939.asia-northeast1.run.app';
+            
             // Fetch depth estimation from backend
-            const response = await fetch('http://localhost:8080/api/depth-estimation', {
+            const response = await fetch(`${apiUrl}/api/depth-estimation`, {
                 method: 'POST'
             });
             
