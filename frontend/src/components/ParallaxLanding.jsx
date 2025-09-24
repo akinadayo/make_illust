@@ -2,33 +2,24 @@ import React, { useState, useEffect, useRef } from 'react';
 import './ParallaxLanding.css';
 
 function ParallaxLanding({ backgroundImage, onStart }) {
-    const [mousePos, setMousePos] = useState({ x: 0.5, y: 0.5 });
+    const [animationTime, setAnimationTime] = useState(0);
     const [layers, setLayers] = useState(null);
     const containerRef = useRef(null);
+    const animationRef = useRef(null);
     
     useEffect(() => {
-        // マウス移動を追跡
-        const handleMouseMove = (e) => {
-            const x = e.clientX / window.innerWidth;
-            const y = e.clientY / window.innerHeight;
-            setMousePos({ x, y });
-        };
-
-        // スマホのジャイロセンサー対応（オプション）
-        const handleDeviceOrientation = (e) => {
-            if (e.gamma && e.beta) {
-                const x = (e.gamma + 90) / 180; // -90〜90度を0〜1に正規化
-                const y = (e.beta + 180) / 360; // -180〜180度を0〜1に正規化
-                setMousePos({ x, y });
-            }
+        // 自動アニメーション
+        const animate = () => {
+            setAnimationTime(prev => prev + 0.01); // ゆっくりと時間を進める
+            animationRef.current = requestAnimationFrame(animate);
         };
         
-        window.addEventListener('mousemove', handleMouseMove);
-        window.addEventListener('deviceorientation', handleDeviceOrientation);
+        animationRef.current = requestAnimationFrame(animate);
         
         return () => {
-            window.removeEventListener('mousemove', handleMouseMove);
-            window.removeEventListener('deviceorientation', handleDeviceOrientation);
+            if (animationRef.current) {
+                cancelAnimationFrame(animationRef.current);
+            }
         };
     }, []);
 
@@ -110,19 +101,21 @@ function ParallaxLanding({ backgroundImage, onStart }) {
         });
     };
 
-    const getLayerTransform = (layer) => {
+    const getLayerTransform = (layer, layerIndex = 0) => {
         if (!layer) return '';
         
-        // マウス位置を-1〜1の範囲に正規化
-        const offsetX = (mousePos.x - 0.5) * 2;
-        const offsetY = (mousePos.y - 0.5) * 2;
+        // 各レイヤーごとに異なる動きのパターンを生成
+        // ゆっくりとした円運動のような自然な動き
+        const speed = layer.parallaxStrength * 0.02; // 速度を調整
+        const phase = layerIndex * Math.PI * 0.5; // 各レイヤーで位相をずらす
         
-        // 深度に基づいて動きをスケール
-        const moveX = offsetX * layer.parallaxStrength;
-        const moveY = offsetY * layer.parallaxStrength * 0.5; // Y軸は控えめに
+        // 8の字を描くような複雑な動き
+        const moveX = Math.sin(animationTime * speed + phase) * layer.parallaxStrength;
+        const moveY = Math.sin(animationTime * speed * 0.7 + phase) * layer.parallaxStrength * 0.3;
         
-        // 深度に基づいてスケールも調整（遠いものは小さく）
-        const scale = 1 + (layer.depth * 0.1);
+        // 微妙なスケール変化も追加（呼吸するような効果）
+        const scaleOscillation = Math.sin(animationTime * speed * 0.5) * 0.02;
+        const scale = 1 + (layer.depth * 0.05) + scaleOscillation;
         
         return `translate(${moveX}px, ${moveY}px) scale(${scale})`;
     };
@@ -134,7 +127,7 @@ function ParallaxLanding({ backgroundImage, onStart }) {
                 className="parallax-layer background-layer"
                 style={{
                     backgroundImage: `url(${backgroundImage})`,
-                    transform: getLayerTransform(layers?.background),
+                    transform: getLayerTransform(layers?.background, 0),
                     filter: `blur(${layers?.background?.blur || 0}px)`
                 }}
             />
@@ -145,7 +138,7 @@ function ParallaxLanding({ backgroundImage, onStart }) {
                     className="parallax-layer midground-layer"
                     style={{
                         backgroundImage: `url(${backgroundImage})`,
-                        transform: getLayerTransform(layers.midground),
+                        transform: getLayerTransform(layers.midground, 1),
                         filter: `blur(${layers.midground.blur || 0}px)`,
                         maskImage: 'linear-gradient(to bottom, transparent 0%, black 30%, black 70%, transparent 100%)'
                     }}
@@ -157,7 +150,7 @@ function ParallaxLanding({ backgroundImage, onStart }) {
                 className="parallax-layer foreground-layer"
                 style={{
                     backgroundImage: `url(${backgroundImage})`,
-                    transform: getLayerTransform(layers?.foreground),
+                    transform: getLayerTransform(layers?.foreground, 2),
                     filter: `blur(${layers?.foreground?.blur || 0}px)`
                 }}
             >
@@ -181,9 +174,9 @@ function ParallaxLanding({ backgroundImage, onStart }) {
                 <div className="depth-indicator">
                     {layers && (
                         <div className="depth-info">
-                            <span>Depth Layers Active</span>
-                            <span className="mouse-pos">
-                                Mouse: {(mousePos.x * 100).toFixed(0)}%, {(mousePos.y * 100).toFixed(0)}%
+                            <span>Parallax Active</span>
+                            <span className="animation-time">
+                                Time: {animationTime.toFixed(1)}s
                             </span>
                         </div>
                     )}
