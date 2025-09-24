@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import LandingPage from './components/LandingPage'
 import SimpleChatInterview from './components/SimpleChatInterview'
 import EmoMode from './components/EmoMode'
 import FantasyMode from './components/FantasyMode'
@@ -6,6 +7,7 @@ import ImagePreview from './components/ImagePreview'
 import './App.css'
 
 function App() {
+  const [showLanding, setShowLanding] = useState(true)
   const [mode, setMode] = useState('normal') // 'normal' or 'emo' or 'fantasy'
   const [characterData, setCharacterData] = useState({
     character_id: `char_${Date.now()}`,
@@ -58,6 +60,15 @@ function App() {
   const switchMode = (newMode) => {
     setMode(newMode)
     setGeneratedImages([]) // Clear images when switching modes
+  }
+
+  const handleStartFromLanding = () => {
+    setShowLanding(false)
+  }
+
+  // Show landing page if needed
+  if (showLanding) {
+    return <LandingPage onStart={handleStartFromLanding} />
   }
 
   return (

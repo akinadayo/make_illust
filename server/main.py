@@ -4,9 +4,11 @@ import base64
 import zipfile
 import logging
 import json
+import numpy as np
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from fastapi import FastAPI, HTTPException, Response
+from fastapi import FastAPI, HTTPException, Response, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from typing import List, Dict, Any, Optional
 import requests
@@ -132,6 +134,226 @@ def health_check():
         "port": os.getenv("PORT", "8080"),
         "api_type": "Vertex AI Gemini 2.5 Flash Image Preview"
     }
+
+@app.post("/api/depth-estimation")
+async def estimate_depth(image_file: Optional[UploadFile] = File(None)):
+    """
+    Vertex AIを使用して画像の深度推定を行い、視差レイヤー情報を生成
+    """
+    try:
+        # 認証情報の確認
+        if not credentials:
+            raise HTTPException(status_code=500, detail="Credentials not configured")
+        
+        # 画像データの読み込み
+        if image_file:
+            image_bytes = await image_file.read()
+        else:
+            # デフォルトでhaikei2.pngを使用
+            image_path = "/Users/dcenter/Desktop/make_illust/haikei2.png"
+            if os.path.exists(image_path):
+                with open(image_path, "rb") as f:
+                    image_bytes = f.read()
+            else:
+                raise HTTPException(status_code=404, detail="Default image not found")
+        
+        # 画像を解析用にリサイズ
+        img = Image.open(io.BytesIO(image_bytes))
+        img.thumbnail((1024, 1024), Image.Resampling.LANCZOS)
+        
+        # 画像をbase64エンコード
+        buffer = io.BytesIO()
+        img.save(buffer, format="PNG")
+        image_base64 = base64.b64encode(buffer.getvalue()).decode()
+        
+        # Vertex AI Geminiで深度分析を行う
+        depth_layers = analyze_depth_with_gemini(image_base64)
+        
+        return JSONResponse(content={
+            "status": "success",
+            "depth_layers": depth_layers,
+            "parallax_config": generate_parallax_config(depth_layers)
+        })
+        
+    except Exception as e:
+        logger.error(f"Depth estimation error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Depth estimation failed: {str(e)}")
+
+def analyze_depth_with_gemini(image_base64: str) -> Dict[str, Any]:
+    """
+    Gemini APIを使用して画像の深度を分析し、レイヤー情報を生成
+    """
+    if not credentials:
+        raise Exception("Credentials not configured")
+    
+    # 認証トークンの取得
+    if hasattr(credentials, 'refresh'):
+        credentials.refresh(Request())
+    
+    token = getattr(credentials, 'token', None)
+    if not token:
+        raise Exception("Failed to acquire access token")
+    
+    # 深度分析用のプロンプト
+    prompt = """
+    この画像を分析して、視差効果のための深度レイヤーを特定してください。
+    画像を以下の3つのレイヤーに分けて、それぞれの特徴と深度を教えてください：
+    
+    1. 前景（Foreground）: 最も手前にある要素、深度0-30%
+    2. 中景（Midground）: 中間の距離にある要素、深度30-70%
+    3. 背景（Background）: 最も遠くにある要素、深度70-100%
+    
+    各レイヤーについて：
+    - 主な要素や特徴
+    - 推定される深度値（0-100）
+    - 視差効果の強さ（弱い/中程度/強い）
+    - 動きの方向の推奨（水平/垂直/両方）
+    
+    JSON形式で回答してください。
+    """
+    
+    request_body = {
+        "contents": [{
+            "role": "user",
+            "parts": [
+                {
+                    "inline_data": {
+                        "mime_type": "image/png",
+                        "data": image_base64
+                    }
+                },
+                {"text": prompt}
+            ]
+        }],
+        "generationConfig": {
+            "temperature": 0.2,
+            "topP": 0.8,
+            "topK": 40,
+            "candidateCount": 1,
+            "responseModalities": ["TEXT"]
+        }
+    }
+    
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json"
+    }
+    
+    response = requests.post(
+        GENAI_ENDPOINT,
+        headers=headers,
+        json=request_body,
+        timeout=30
+    )
+    
+    if response.status_code != 200:
+        logger.error(f"Gemini API error: {response.status_code} - {response.text}")
+        # フォールバックとしてデフォルトの深度情報を返す
+        return get_default_depth_layers()
+    
+    result = response.json()
+    
+    # レスポンスから深度情報を抽出
+    try:
+        content = result['candidates'][0]['content']['parts'][0]['text']
+        # JSONを抽出して解析
+        import re
+        json_match = re.search(r'\{.*\}', content, re.DOTALL)
+        if json_match:
+            depth_data = json.loads(json_match.group())
+            return depth_data
+    except Exception as e:
+        logger.warning(f"Failed to parse Gemini response: {e}")
+        return get_default_depth_layers()
+
+def get_default_depth_layers() -> Dict[str, Any]:
+    """
+    デフォルトの深度レイヤー情報を返す
+    """
+    return {
+        "layers": [
+            {
+                "name": "background",
+                "depth": 90,
+                "parallax_strength": "strong",
+                "movement": "horizontal",
+                "scale": 1.3,
+                "blur": 3,
+                "opacity": 0.8,
+                "animation_speed": 30
+            },
+            {
+                "name": "midground",
+                "depth": 50,
+                "parallax_strength": "medium",
+                "movement": "both",
+                "scale": 1.1,
+                "blur": 1,
+                "opacity": 0.9,
+                "animation_speed": 25
+            },
+            {
+                "name": "foreground",
+                "depth": 10,
+                "parallax_strength": "weak",
+                "movement": "horizontal",
+                "scale": 1.0,
+                "blur": 0,
+                "opacity": 1.0,
+                "animation_speed": 20
+            }
+        ]
+    }
+
+def generate_parallax_config(depth_layers: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    深度情報から視差アニメーション設定を生成
+    """
+    config = {
+        "layers": [],
+        "animation_type": "time-based",
+        "global_speed": 1.0
+    }
+    
+    for layer in depth_layers.get("layers", []):
+        layer_config = {
+            "id": layer["name"],
+            "depth": layer["depth"],
+            "animations": []
+        }
+        
+        # 深度に基づいて視差の動きを計算
+        depth_factor = layer["depth"] / 100
+        
+        # 水平移動のアニメーション
+        if layer["movement"] in ["horizontal", "both"]:
+            layer_config["animations"].append({
+                "type": "translateX",
+                "amplitude": 30 * depth_factor,  # 深い層ほど大きく動く
+                "frequency": 1 / layer["animation_speed"],
+                "phase": 0
+            })
+        
+        # 垂直移動のアニメーション
+        if layer["movement"] in ["vertical", "both"]:
+            layer_config["animations"].append({
+                "type": "translateY",
+                "amplitude": 20 * depth_factor,
+                "frequency": 1 / (layer["animation_speed"] * 1.2),
+                "phase": 0.25  # 位相をずらして自然な動きに
+            })
+        
+        # スケールアニメーション（呼吸効果）
+        layer_config["animations"].append({
+            "type": "scale",
+            "amplitude": 0.05 * (1 - depth_factor),  # 手前の層ほど大きくスケール変化
+            "frequency": 1 / (layer["animation_speed"] * 2),
+            "phase": 0.5
+        })
+        
+        config["layers"].append(layer_config)
+    
+    return config
 
 def request_gemini_image(
     prompt: str,
