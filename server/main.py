@@ -136,9 +136,10 @@ def health_check():
     }
 
 @app.post("/api/depth-estimation")
-async def estimate_depth(image_file: Optional[UploadFile] = File(None)):
+async def estimate_depth(image_file: Optional[UploadFile] = File(None), use_depth_anything: bool = False):
     """
-    Vertex AIを使用して画像の深度推定を行い、視差レイヤー情報を生成
+    画像の深度推定を行い、視差レイヤー情報を生成
+    use_depth_anything=Trueの場合、Depth Anything V2を使用（より正確な深度推定）
     """
     try:
         # 認証情報の確認
@@ -172,23 +173,53 @@ async def estimate_depth(image_file: Optional[UploadFile] = File(None)):
                     "parallax_config": generate_parallax_config(get_default_depth_layers())
                 })
         
-        # 画像を解析用にリサイズ
-        img = Image.open(io.BytesIO(image_bytes))
-        img.thumbnail((1024, 1024), Image.Resampling.LANCZOS)
+        # 深度推定方法の選択
+        if use_depth_anything:
+            # Depth Anything V2を使用（より正確な深度推定）
+            try:
+                from server.depth_anything import estimate_depth_with_depth_anything
+                logger.info("Using Depth Anything V2 for depth estimation")
+                
+                # Hugging Face APIトークン（環境変数から取得）
+                hf_token = os.getenv("HUGGINGFACE_TOKEN")
+                
+                depth_result = estimate_depth_with_depth_anything(
+                    image_bytes,
+                    hf_token=hf_token,
+                    use_local=False  # APIを使用
+                )
+                
+                return JSONResponse(content={
+                    "status": "success",
+                    "depth_layers": depth_result,
+                    "parallax_config": generate_parallax_config(depth_result),
+                    "method": "depth_anything_v2"
+                })
+                
+            except ImportError as e:
+                logger.warning(f"Depth Anything module not available: {e}, falling back to Gemini")
+                use_depth_anything = False
+            except Exception as e:
+                logger.error(f"Depth Anything error: {e}, falling back to Gemini")
+                use_depth_anything = False
         
-        # 画像をbase64エンコード
-        buffer = io.BytesIO()
-        img.save(buffer, format="PNG")
-        image_base64 = base64.b64encode(buffer.getvalue()).decode()
-        
-        # Vertex AI Geminiで深度分析を行う
-        depth_layers = analyze_depth_with_gemini(image_base64)
-        
-        return JSONResponse(content={
-            "status": "success",
-            "depth_layers": depth_layers,
-            "parallax_config": generate_parallax_config(depth_layers)
-        })
+        # Gemini 1.5 Flashで深度分析を行う（デフォルトまたはフォールバック）
+        if not use_depth_anything:
+            img = Image.open(io.BytesIO(image_bytes))
+            img.thumbnail((1024, 1024), Image.Resampling.LANCZOS)
+            
+            buffer = io.BytesIO()
+            img.save(buffer, format="PNG")
+            image_base64 = base64.b64encode(buffer.getvalue()).decode()
+            
+            depth_layers = analyze_depth_with_gemini(image_base64)
+            
+            return JSONResponse(content={
+                "status": "success",
+                "depth_layers": depth_layers,
+                "parallax_config": generate_parallax_config(depth_layers),
+                "method": "gemini_1.5_flash"
+            })
         
     except Exception as e:
         logger.error(f"Depth estimation error: {str(e)}")
