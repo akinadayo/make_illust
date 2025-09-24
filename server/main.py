@@ -197,89 +197,14 @@ async def estimate_depth(image_file: Optional[UploadFile] = File(None)):
 def analyze_depth_with_gemini(image_base64: str) -> Dict[str, Any]:
     """
     Gemini APIを使用して画像の深度を分析し、レイヤー情報を生成
+    注: Gemini 2.5 Flash Image Previewは画像生成専用のため、
+    画像分析には対応していません。常にデフォルトの深度情報を返します。
     """
-    if not credentials:
-        raise Exception("Credentials not configured")
-    
-    # 認証トークンの取得
-    if hasattr(credentials, 'refresh'):
-        credentials.refresh(Request())
-    
-    token = getattr(credentials, 'token', None)
-    if not token:
-        raise Exception("Failed to acquire access token")
-    
-    # 深度分析用のプロンプト
-    prompt = """
-    この画像を分析して、視差効果のための深度レイヤーを特定してください。
-    画像を以下の3つのレイヤーに分けて、それぞれの特徴と深度を教えてください：
-    
-    1. 前景（Foreground）: 最も手前にある要素、深度0-30%
-    2. 中景（Midground）: 中間の距離にある要素、深度30-70%
-    3. 背景（Background）: 最も遠くにある要素、深度70-100%
-    
-    各レイヤーについて：
-    - 主な要素や特徴
-    - 推定される深度値（0-100）
-    - 視差効果の強さ（弱い/中程度/強い）
-    - 動きの方向の推奨（水平/垂直/両方）
-    
-    JSON形式で回答してください。
-    """
-    
-    request_body = {
-        "contents": [{
-            "role": "user",
-            "parts": [
-                {
-                    "inline_data": {
-                        "mime_type": "image/png",
-                        "data": image_base64
-                    }
-                },
-                {"text": prompt}
-            ]
-        }],
-        "generationConfig": {
-            "temperature": 0.2,
-            "topP": 0.8,
-            "topK": 40,
-            "candidateCount": 1,
-            "responseModalities": ["TEXT"]
-        }
-    }
-    
-    headers = {
-        "Authorization": f"Bearer {token}",
-        "Content-Type": "application/json"
-    }
-    
-    response = requests.post(
-        GENAI_ENDPOINT,
-        headers=headers,
-        json=request_body,
-        timeout=30
-    )
-    
-    if response.status_code != 200:
-        logger.error(f"Gemini API error: {response.status_code} - {response.text}")
-        # フォールバックとしてデフォルトの深度情報を返す
-        return get_default_depth_layers()
-    
-    result = response.json()
-    
-    # レスポンスから深度情報を抽出
-    try:
-        content = result['candidates'][0]['content']['parts'][0]['text']
-        # JSONを抽出して解析
-        import re
-        json_match = re.search(r'\{.*\}', content, re.DOTALL)
-        if json_match:
-            depth_data = json.loads(json_match.group())
-            return depth_data
-    except Exception as e:
-        logger.warning(f"Failed to parse Gemini response: {e}")
-        return get_default_depth_layers()
+    # Gemini 2.5 Flash Image Previewは画像生成専用モデルのため、
+    # 画像分析はサポートされていません。
+    # デフォルトの深度レイヤー情報を返します。
+    logger.info("Using default depth layers (Gemini 2.5 Flash Image Preview does not support image analysis)")
+    return get_default_depth_layers()
 
 def get_default_depth_layers() -> Dict[str, Any]:
     """
