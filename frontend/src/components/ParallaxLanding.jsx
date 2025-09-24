@@ -170,7 +170,11 @@ function ParallaxLanding({ backgroundImage, onStart }) {
             
             {/* UI要素（最前面） */}
             <div className="parallax-content">
-                <h1 className="parallax-title" onClick={onStart}>TAP TO START</h1>
+                <div className="app-title">
+                    <h1 className="main-title">Standing-Set-5</h1>
+                    <p className="subtitle">AI Character Generator</p>
+                </div>
+                <h2 className="parallax-title" data-text="TAP TO START" onClick={onStart}>TAP TO START</h2>
                 <div className="depth-indicator">
                     {layers && (
                         <div className="depth-info">
