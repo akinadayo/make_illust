@@ -196,15 +196,153 @@ async def estimate_depth(image_file: Optional[UploadFile] = File(None)):
 
 def analyze_depth_with_gemini(image_base64: str) -> Dict[str, Any]:
     """
-    Gemini APIを使用して画像の深度を分析し、レイヤー情報を生成
-    注: Gemini 2.5 Flash Image Previewは画像生成専用のため、
-    画像分析には対応していません。常にデフォルトの深度情報を返します。
+    Gemini 1.5 Flashを使用して画像の深度を分析し、レイヤー情報を生成
+    被写体（人物）を検知して適切な深度情報を返す
     """
-    # Gemini 2.5 Flash Image Previewは画像生成専用モデルのため、
-    # 画像分析はサポートされていません。
-    # デフォルトの深度レイヤー情報を返します。
-    logger.info("Using default depth layers (Gemini 2.5 Flash Image Preview does not support image analysis)")
-    return get_default_depth_layers()
+    if not credentials:
+        logger.warning("Credentials not configured, using default depth layers")
+        return get_default_depth_layers()
+    
+    try:
+        # 認証トークンの取得
+        if hasattr(credentials, 'refresh'):
+            credentials.refresh(Request())
+        
+        token = getattr(credentials, 'token', None)
+        if not token:
+            logger.warning("Failed to acquire access token, using default depth layers")
+            return get_default_depth_layers()
+        
+        # Gemini 1.5 Flash（画像理解対応）のエンドポイント
+        vision_endpoint = f"https://{LOCATION}-aiplatform.googleapis.com/v1/projects/{PROJECT_ID}/locations/{LOCATION}/publishers/google/models/gemini-1.5-flash:generateContent"
+        
+        # 被写体検知と深度分析用のプロンプト
+        prompt = """この画像を分析して、以下の情報をJSON形式で提供してください：
+
+1. 人物や主要な被写体の検出
+2. 各被写体の画像内での位置（前景、中景、背景）
+3. 視差効果のための深度レイヤー情報
+
+特に注目すべき点：
+- 人物が存在する場合、その位置と大きさ
+- 人物の服装、髪型、ポーズなどの特徴
+- 背景要素（空、海、ビーチ、建物など）
+- 各要素の相対的な深度
+
+以下の形式でJSONを返してください：
+{
+  "subject_detection": {
+    "has_person": true/false,
+    "person_position": "foreground/midground/background",
+    "person_description": "検出された人物の説明",
+    "person_bounds": {
+      "x": 0-100（画像幅に対する％）,
+      "y": 0-100（画像高さに対する％）,
+      "width": 0-100,
+      "height": 0-100
+    }
+  },
+  "layers": [
+    {
+      "name": "background",
+      "depth": 70-100,
+      "content": "背景の内容（空、海など）",
+      "parallax_strength": "strong",
+      "movement": "horizontal",
+      "scale": 1.2,
+      "blur": 2,
+      "opacity": 0.9,
+      "animation_speed": 30
+    },
+    {
+      "name": "midground", 
+      "depth": 30-70,
+      "content": "中景の内容",
+      "parallax_strength": "medium",
+      "movement": "both",
+      "scale": 1.1,
+      "blur": 0.5,
+      "opacity": 0.95,
+      "animation_speed": 25
+    },
+    {
+      "name": "foreground",
+      "depth": 0-30,
+      "content": "前景の内容（人物など）",
+      "parallax_strength": "weak",
+      "movement": "horizontal",
+      "scale": 1.0,
+      "blur": 0,
+      "opacity": 1.0,
+      "animation_speed": 20
+    }
+  ]
+}"""
+        
+        request_body = {
+            "contents": [{
+                "role": "user",
+                "parts": [
+                    {
+                        "inline_data": {
+                            "mime_type": "image/png",
+                            "data": image_base64
+                        }
+                    },
+                    {"text": prompt}
+                ]
+            }],
+            "generationConfig": {
+                "temperature": 0.2,
+                "topP": 0.95,
+                "topK": 40,
+                "candidateCount": 1,
+                "maxOutputTokens": 2048
+            }
+        }
+        
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json"
+        }
+        
+        logger.info(f"Calling Gemini 1.5 Flash for image analysis: {vision_endpoint}")
+        response = requests.post(
+            vision_endpoint,
+            headers=headers,
+            json=request_body,
+            timeout=30
+        )
+        
+        if response.status_code != 200:
+            logger.error(f"Gemini Vision API error: {response.status_code} - {response.text}")
+            return get_default_depth_layers()
+        
+        result = response.json()
+        
+        # レスポンスから深度情報を抽出
+        try:
+            content = result['candidates'][0]['content']['parts'][0]['text']
+            logger.info(f"Gemini Vision response preview: {content[:200]}...")
+            
+            # JSONを抽出して解析
+            import re
+            json_match = re.search(r'\{.*\}', content, re.DOTALL)
+            if json_match:
+                depth_data = json.loads(json_match.group())
+                logger.info(f"Successfully parsed depth data with subject detection: {depth_data.get('subject_detection', {}).get('has_person', False)}")
+                return depth_data
+            else:
+                logger.warning("No JSON found in Gemini response")
+                return get_default_depth_layers()
+                
+        except Exception as e:
+            logger.warning(f"Failed to parse Gemini response: {e}")
+            return get_default_depth_layers()
+            
+    except Exception as e:
+        logger.error(f"Error in analyze_depth_with_gemini: {e}")
+        return get_default_depth_layers()
 
 def get_default_depth_layers() -> Dict[str, Any]:
     """
