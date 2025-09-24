@@ -38,8 +38,11 @@
   height: auto;
   display: block;
   aspect-ratio: 9/16;
-  object-fit: contain;
+  object-fit: cover;
   background: transparent;
+  image-rendering: crisp-edges;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
 }
 
 .image-card p {
