@@ -26,6 +26,17 @@ except ImportError:
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# BiRefNet imports
+try:
+    import torch
+    from transformers import AutoModelForImageSegmentation
+    import torchvision.transforms as transforms
+    BIREFNET_AVAILABLE = True
+    logger.info("BiRefNet dependencies loaded successfully")
+except ImportError:
+    BIREFNET_AVAILABLE = False
+    logger.warning("BiRefNet dependencies not available, falling back to rembg")
+
 # 起動ログ
 logger.info("Starting Standing Set Backend Service...")
 
@@ -49,6 +60,39 @@ try:
 except Exception as e:
     logger.warning(f"Failed to get default credentials on startup (will retry on request): {e}")
     # 起動時に失敗しても続行
+
+# BiRefNet model initialization
+birefnet_model = None
+birefnet_transform = None
+device = None
+
+if BIREFNET_AVAILABLE:
+    try:
+        logger.info("Loading BiRefNet model...")
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        logger.info(f"Using device: {device}")
+
+        # Load BiRefNet model from Hugging Face
+        birefnet_model = AutoModelForImageSegmentation.from_pretrained(
+            "ZhengPeng7/BiRefNet",
+            trust_remote_code=True
+        )
+        birefnet_model.to(device)
+        birefnet_model.eval()
+
+        # Define transform
+        birefnet_transform = transforms.Compose([
+            transforms.Resize((1024, 1024)),
+            transforms.ToTensor(),
+            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+        ])
+
+        logger.info("BiRefNet model loaded successfully")
+    except Exception as e:
+        logger.error(f"Failed to load BiRefNet model: {e}")
+        BIREFNET_AVAILABLE = False
+        birefnet_model = None
+        birefnet_transform = None
 
 app = FastAPI(title="Standing-Set-5 API with Google Cloud")
 
@@ -626,7 +670,49 @@ def remove_green_background(image_bytes: bytes) -> bytes:
             # 最終フォールバック: オリジナル画像を返す
             return image_bytes
 
-def remove_black_background(image_bytes: bytes) -> bytes:
+def remove_background_birefnet(image_bytes: bytes) -> bytes:
+    """BiRefNetを使用した高精度背景除去"""
+    global birefnet_model, birefnet_transform, device
+
+    if not BIREFNET_AVAILABLE or birefnet_model is None:
+        logger.warning("BiRefNet not available, falling back to rembg")
+        return remove_black_background_rembg(image_bytes)
+
+    try:
+        logger.info("Using BiRefNet for background removal")
+
+        # Load image
+        img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+        original_size = img.size
+
+        # Preprocess
+        input_tensor = birefnet_transform(img).unsqueeze(0).to(device)
+
+        # Inference
+        with torch.no_grad():
+            output = birefnet_model(input_tensor)[-1].sigmoid()
+
+        # Post-process
+        mask = output[0, 0].cpu().numpy()
+        mask = (mask * 255).astype(np.uint8)
+        mask = Image.fromarray(mask).resize(original_size, Image.Resampling.LANCZOS)
+
+        # Apply mask to original image
+        img_rgba = img.convert("RGBA")
+        img_rgba.putalpha(mask)
+
+        # Save to bytes
+        buffer = io.BytesIO()
+        img_rgba.save(buffer, format="PNG", optimize=True)
+        logger.info("BiRefNet background removal successful")
+        return buffer.getvalue()
+
+    except Exception as e:
+        logger.error(f"BiRefNet background removal failed: {e}")
+        logger.info("Falling back to rembg")
+        return remove_black_background_rembg(image_bytes)
+
+def remove_black_background_rembg(image_bytes: bytes) -> bytes:
     """黒背景を透明にする - ファンタジーモード用（強化版）"""
     try:
         # Step 1: rembgで初期背景除去（より強力な設定）
@@ -1284,7 +1370,7 @@ This is image editing task, not new image generation. Preserve all visual detail
         processed_images = []
         for idx, img_bytes in enumerate(all_images):
             logger.info(f"Removing background from fantasy image {idx + 1}/{len(all_images)}")
-            processed = remove_black_background(img_bytes)
+            processed = remove_background_birefnet(img_bytes)
             processed_images.append(processed)
 
         logger.info(f"Generated and processed {len(processed_images)} fantasy images successfully (6 specified outfit + 6 casual outfit)")
