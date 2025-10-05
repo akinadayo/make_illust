@@ -995,9 +995,11 @@ def generate_fantasy_with_vertex(character: FantasyCharacter) -> List[bytes]:
     try:
         expressions = [
             ("neutral", f"{character.expression} - base expression showing character's default mood"),
-            ("happy", f"happy and cheerful version of {character.expression}"),
-            ("serious", f"serious and focused version of {character.expression}"),
-            ("special", f"unique special expression variation of {character.expression}")
+            ("pouting", "pouting expression with puffed cheeks and slightly pursed lips, showing displeasure"),
+            ("troubled", "troubled/worried expression with furrowed brows and slightly downturned mouth"),
+            ("big_smile", "bright beaming smile with wide grin, showing pure joy and happiness"),
+            ("sad", "sad expression with downcast eyes and slight frown, showing sorrow"),
+            ("serious", "serious and focused expression with calm eyes and neutral mouth")
         ]
 
         negative_prompt = """low quality, pixelated, blurry, distorted anatomy, bad proportions,
@@ -1073,8 +1075,8 @@ This is image editing task, not new image generation. Preserve all visual detail
                 )
         
         # ThreadPoolExecutorで並列実行
-        logger.info("Starting parallel generation for 3 fantasy expression variations")
-        with ThreadPoolExecutor(max_workers=3) as executor:
+        logger.info("Starting parallel generation for 5 fantasy expression variations")
+        with ThreadPoolExecutor(max_workers=5) as executor:
             future_to_expression = {
                 executor.submit(generate_expression, exp_data): idx 
                 for idx, exp_data in enumerate(expressions[1:], start=1)
@@ -1093,7 +1095,7 @@ This is image editing task, not new image generation. Preserve all visual detail
                     raise
             
             # 順番通りに追加
-            for i in range(1, 4):
+            for i in range(1, 6):
                 if i in results:
                     images.append(results[i])
                     
