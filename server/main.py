@@ -105,7 +105,7 @@ class FantasyCharacter(BaseModel):
     hair_color: str = Field(..., description="髪色（例：silver、blonde、black）")
     hair_style: str = Field(..., description="髪型（例：straight、wavy、twintails）")
     outfit: str = Field(..., description="服装（例：knight armor、mage robe、elegant dress）")
-    outfit_from_image: Optional[str] = Field(default=None, description="画像から解析された服装の説明文")
+    outfit_image_base64: Optional[str] = Field(default=None, description="服装参照画像のbase64エンコードデータ")
     eye_shape: str = Field(..., description="瞳の形（例：large、narrow、almond-shaped）")
     eye_color: str = Field(..., description="瞳の色（例：blue、red、heterochromia）")
     expression: str = Field(..., description="表情（例：confident、mysterious、gentle）")
@@ -136,475 +136,13 @@ def health_check():
         "api_type": "Vertex AI Gemini 2.5 Flash Image Preview"
     }
 
-@app.post("/api/depth-estimation")
-async def estimate_depth(image_file: Optional[UploadFile] = File(None), use_depth_anything: bool = False):
-    """
-    画像の深度推定を行い、視差レイヤー情報を生成
-    use_depth_anything=Trueの場合、Depth Anything V2を使用（より正確な深度推定）
-    """
-    try:
-        # 認証情報の確認
-        if not credentials:
-            raise HTTPException(status_code=500, detail="Credentials not configured")
-        
-        # 画像データの読み込み
-        if image_file:
-            image_bytes = await image_file.read()
-        else:
-            # デフォルトでhaikei2.pngを使用 - Cloud Run環境用のパスも試す
-            possible_paths = [
-                "/app/haikei2.png",  # Docker container path
-                "./haikei2.png",     # Current directory
-                "/Users/dcenter/Desktop/make_illust/haikei2.png"  # Local development
-            ]
-            
-            image_bytes = None
-            for path in possible_paths:
-                if os.path.exists(path):
-                    with open(path, "rb") as f:
-                        image_bytes = f.read()
-                    break
-            
-            if not image_bytes:
-                # フォールバックとして、ダミーの深度情報を返す
-                logger.warning("Default image not found, using fallback depth layers")
-                return JSONResponse(content={
-                    "status": "success",
-                    "depth_layers": get_default_depth_layers(),
-                    "parallax_config": generate_parallax_config(get_default_depth_layers())
-                })
-        
-        # 深度推定方法の選択
-        if use_depth_anything:
-            # Depth Anything V2を使用（より正確な深度推定）
-            try:
-                from server.depth_anything import estimate_depth_with_depth_anything
-                logger.info("Using Depth Anything V2 for depth estimation")
-                
-                # Hugging Face APIトークン（環境変数から取得）
-                hf_token = os.getenv("HUGGINGFACE_TOKEN")
-                
-                depth_result = estimate_depth_with_depth_anything(
-                    image_bytes,
-                    hf_token=hf_token,
-                    use_local=False  # APIを使用
-                )
-                
-                return JSONResponse(content={
-                    "status": "success",
-                    "depth_layers": depth_result,
-                    "parallax_config": generate_parallax_config(depth_result),
-                    "method": "depth_anything_v2"
-                })
-                
-            except ImportError as e:
-                logger.warning(f"Depth Anything module not available: {e}, falling back to Gemini")
-                use_depth_anything = False
-            except Exception as e:
-                logger.error(f"Depth Anything error: {e}, falling back to Gemini")
-                use_depth_anything = False
-        
-        # Gemini 1.5 Flashで深度分析を行う（デフォルトまたはフォールバック）
-        if not use_depth_anything:
-            img = Image.open(io.BytesIO(image_bytes))
-            img.thumbnail((1024, 1024), Image.Resampling.LANCZOS)
-            
-            buffer = io.BytesIO()
-            img.save(buffer, format="PNG")
-            image_base64 = base64.b64encode(buffer.getvalue()).decode()
-            
-            depth_layers = analyze_depth_with_gemini(image_base64)
-            
-            return JSONResponse(content={
-                "status": "success",
-                "depth_layers": depth_layers,
-                "parallax_config": generate_parallax_config(depth_layers),
-                "method": "gemini_1.5_flash"
-            })
-        
-    except Exception as e:
-        logger.error(f"Depth estimation error: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Depth estimation failed: {str(e)}")
-
-@app.post("/api/analyze-outfit")
-async def analyze_outfit(image_file: UploadFile = File(...)):
-    """
-    アップロードされた服装画像を解析して詳細な説明を生成
-    Gemini 1.5 Flashを使用
-    """
-    try:
-        # 画像データを読み込み
-        image_bytes = await image_file.read()
-        logger.info(f"Received outfit image: {image_file.filename}, size: {len(image_bytes)} bytes")
-
-        # 画像をリサイズ（元の形式を保持してからPNGに変換）
-        img = Image.open(io.BytesIO(image_bytes))
-
-        # RGBに変換（透過を削除、JPEG互換に）
-        if img.mode in ('RGBA', 'LA', 'P'):
-            background = Image.new('RGB', img.size, (255, 255, 255))
-            if img.mode == 'P':
-                img = img.convert('RGBA')
-            background.paste(img, mask=img.split()[-1] if img.mode in ('RGBA', 'LA') else None)
-            img = background
-        elif img.mode != 'RGB':
-            img = img.convert('RGB')
-
-        img.thumbnail((1024, 1024), Image.Resampling.LANCZOS)
-
-        buffer = io.BytesIO()
-        img.save(buffer, format="PNG")
-        image_base64 = base64.b64encode(buffer.getvalue()).decode()
-
-        # Gemini 1.5 Flashで服装を解析
-        outfit_description = analyze_outfit_with_gemini(image_base64)
-        logger.info(f"Outfit analysis successful: {outfit_description[:100]}...")
-
-        return JSONResponse(content={
-            "status": "success",
-            "outfit_description": outfit_description
-        })
-
-    except Exception as e:
-        logger.error(f"Outfit analysis error: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Outfit analysis failed: {str(e)}")
-
-def analyze_outfit_with_gemini(image_base64: str) -> str:
-    """
-    Gemini 1.5 Flashを使用して服装画像を解析
-    ファンタジーキャラクター生成用の詳細な説明文を生成
-    """
-    if not credentials:
-        logger.warning("Credentials not configured for outfit analysis")
-        raise Exception("Credentials not configured")
-
-    try:
-        # 認証トークンの取得
-        if hasattr(credentials, 'refresh'):
-            credentials.refresh(Request())
-
-        token = getattr(credentials, 'token', None)
-        if not token:
-            raise Exception("Failed to acquire access token")
-
-        # Gemini 1.5 Flash（画像理解対応）のエンドポイント - 安定版を使用
-        vision_endpoint = f"https://{LOCATION}-aiplatform.googleapis.com/v1/projects/{PROJECT_ID}/locations/{LOCATION}/publishers/google/models/gemini-1.5-flash-002:generateContent"
-
-        # 服装解析用のプロンプト
-        prompt = """この画像の服装を詳細に分析して、ファンタジーキャラクター生成用の説明文を作成してください。
-
-以下の情報を含めてください：
-- 服装のスタイル（鎧、ローブ、ドレス、カジュアルなど）
-- 色とデザインの特徴
-- 装飾やアクセサリー
-- 全体的な雰囲気（騎士風、魔法使い風、貴族風など）
-
-簡潔で明確な英語の説明文として出力してください。JSON形式ではなく、プレーンテキストで。
-例: "dark blue school blazer with white trim, pleated plaid skirt in navy and red, white shirt with red ribbon, knee-high dark socks, brown leather shoes"
-"""
-
-        request_body = {
-            "contents": [{
-                "role": "user",
-                "parts": [
-                    {
-                        "inline_data": {
-                            "mime_type": "image/png",
-                            "data": image_base64
-                        }
-                    },
-                    {"text": prompt}
-                ]
-            }],
-            "generationConfig": {
-                "temperature": 0.3,
-                "topP": 0.95,
-                "topK": 40,
-                "candidateCount": 1,
-                "maxOutputTokens": 500
-            }
-        }
-
-        headers = {
-            "Authorization": f"Bearer {token}",
-            "Content-Type": "application/json"
-        }
-
-        logger.info(f"Calling Gemini 1.5 Flash for outfit analysis")
-        response = requests.post(
-            vision_endpoint,
-            headers=headers,
-            json=request_body,
-            timeout=30
-        )
-
-        if response.status_code != 200:
-            logger.error(f"Gemini API error: {response.status_code} - {response.text}")
-            raise Exception(f"Gemini API returned status {response.status_code}")
-
-        result = response.json()
-
-        # レスポンスからテキストを抽出
-        try:
-            content = result['candidates'][0]['content']['parts'][0]['text']
-            # テキストをクリーンアップ（改行や余分な空白を削除）
-            outfit_description = ' '.join(content.strip().split())
-            logger.info(f"Outfit analysis result: {outfit_description[:100]}...")
-            return outfit_description
-
-        except Exception as e:
-            logger.warning(f"Failed to parse Gemini response: {e}")
-            raise Exception("Failed to parse outfit description")
-
-    except Exception as e:
-        logger.error(f"Error in analyze_outfit_with_gemini: {e}")
-        raise
-
-def analyze_depth_with_gemini(image_base64: str) -> Dict[str, Any]:
-    """
-    Gemini 1.5 Flashを使用して画像の深度を分析し、レイヤー情報を生成
-    被写体（人物）を検知して適切な深度情報を返す
-    """
-    if not credentials:
-        logger.warning("Credentials not configured, using default depth layers")
-        return get_default_depth_layers()
-    
-    try:
-        # 認証トークンの取得
-        if hasattr(credentials, 'refresh'):
-            credentials.refresh(Request())
-        
-        token = getattr(credentials, 'token', None)
-        if not token:
-            logger.warning("Failed to acquire access token, using default depth layers")
-            return get_default_depth_layers()
-
-        # Gemini 1.5 Flash（画像理解対応）のエンドポイント - 安定版を使用
-        vision_endpoint = f"https://{LOCATION}-aiplatform.googleapis.com/v1/projects/{PROJECT_ID}/locations/{LOCATION}/publishers/google/models/gemini-1.5-flash-002:generateContent"
-        
-        # 被写体検知と深度分析用のプロンプト
-        prompt = """この画像を分析して、以下の情報をJSON形式で提供してください：
-
-1. 人物や主要な被写体の検出
-2. 各被写体の画像内での位置（前景、中景、背景）
-3. 視差効果のための深度レイヤー情報
-
-特に注目すべき点：
-- 人物が存在する場合、その位置と大きさ
-- 人物の服装、髪型、ポーズなどの特徴
-- 背景要素（空、海、ビーチ、建物など）
-- 各要素の相対的な深度
-
-以下の形式でJSONを返してください：
-{
-  "subject_detection": {
-    "has_person": true/false,
-    "person_position": "foreground/midground/background",
-    "person_description": "検出された人物の説明",
-    "person_bounds": {
-      "x": 0-100（画像幅に対する％）,
-      "y": 0-100（画像高さに対する％）,
-      "width": 0-100,
-      "height": 0-100
-    }
-  },
-  "layers": [
-    {
-      "name": "background",
-      "depth": 70-100,
-      "content": "背景の内容（空、海など）",
-      "parallax_strength": "strong",
-      "movement": "horizontal",
-      "scale": 1.2,
-      "blur": 2,
-      "opacity": 0.9,
-      "animation_speed": 30
-    },
-    {
-      "name": "midground", 
-      "depth": 30-70,
-      "content": "中景の内容",
-      "parallax_strength": "medium",
-      "movement": "both",
-      "scale": 1.1,
-      "blur": 0.5,
-      "opacity": 0.95,
-      "animation_speed": 25
-    },
-    {
-      "name": "foreground",
-      "depth": 0-30,
-      "content": "前景の内容（人物など）",
-      "parallax_strength": "weak",
-      "movement": "horizontal",
-      "scale": 1.0,
-      "blur": 0,
-      "opacity": 1.0,
-      "animation_speed": 20
-    }
-  ]
-}"""
-        
-        request_body = {
-            "contents": [{
-                "role": "user",
-                "parts": [
-                    {
-                        "inline_data": {
-                            "mime_type": "image/png",
-                            "data": image_base64
-                        }
-                    },
-                    {"text": prompt}
-                ]
-            }],
-            "generationConfig": {
-                "temperature": 0.2,
-                "topP": 0.95,
-                "topK": 40,
-                "candidateCount": 1,
-                "maxOutputTokens": 2048
-            }
-        }
-        
-        headers = {
-            "Authorization": f"Bearer {token}",
-            "Content-Type": "application/json"
-        }
-        
-        logger.info(f"Calling Gemini 1.5 Flash for image analysis: {vision_endpoint}")
-        response = requests.post(
-            vision_endpoint,
-            headers=headers,
-            json=request_body,
-            timeout=30
-        )
-        
-        if response.status_code != 200:
-            logger.error(f"Gemini Vision API error: {response.status_code} - {response.text}")
-            return get_default_depth_layers()
-        
-        result = response.json()
-        
-        # レスポンスから深度情報を抽出
-        try:
-            content = result['candidates'][0]['content']['parts'][0]['text']
-            logger.info(f"Gemini Vision response preview: {content[:200]}...")
-            
-            # JSONを抽出して解析
-            import re
-            json_match = re.search(r'\{.*\}', content, re.DOTALL)
-            if json_match:
-                depth_data = json.loads(json_match.group())
-                logger.info(f"Successfully parsed depth data with subject detection: {depth_data.get('subject_detection', {}).get('has_person', False)}")
-                return depth_data
-            else:
-                logger.warning("No JSON found in Gemini response")
-                return get_default_depth_layers()
-                
-        except Exception as e:
-            logger.warning(f"Failed to parse Gemini response: {e}")
-            return get_default_depth_layers()
-            
-    except Exception as e:
-        logger.error(f"Error in analyze_depth_with_gemini: {e}")
-        return get_default_depth_layers()
-
-def get_default_depth_layers() -> Dict[str, Any]:
-    """
-    デフォルトの深度レイヤー情報を返す
-    """
-    return {
-        "layers": [
-            {
-                "name": "background",
-                "depth": 90,
-                "parallax_strength": "strong",
-                "movement": "horizontal",
-                "scale": 1.3,
-                "blur": 3,
-                "opacity": 0.8,
-                "animation_speed": 30
-            },
-            {
-                "name": "midground",
-                "depth": 50,
-                "parallax_strength": "medium",
-                "movement": "both",
-                "scale": 1.1,
-                "blur": 1,
-                "opacity": 0.9,
-                "animation_speed": 25
-            },
-            {
-                "name": "foreground",
-                "depth": 10,
-                "parallax_strength": "weak",
-                "movement": "horizontal",
-                "scale": 1.0,
-                "blur": 0,
-                "opacity": 1.0,
-                "animation_speed": 20
-            }
-        ]
-    }
-
-def generate_parallax_config(depth_layers: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    深度情報から視差アニメーション設定を生成
-    """
-    config = {
-        "layers": [],
-        "animation_type": "time-based",
-        "global_speed": 1.0
-    }
-    
-    for layer in depth_layers.get("layers", []):
-        layer_config = {
-            "id": layer["name"],
-            "depth": layer["depth"],
-            "animations": []
-        }
-        
-        # 深度に基づいて視差の動きを計算
-        depth_factor = layer["depth"] / 100
-        
-        # 水平移動のアニメーション
-        if layer["movement"] in ["horizontal", "both"]:
-            layer_config["animations"].append({
-                "type": "translateX",
-                "amplitude": 30 * depth_factor,  # 深い層ほど大きく動く
-                "frequency": 1 / layer["animation_speed"],
-                "phase": 0
-            })
-        
-        # 垂直移動のアニメーション
-        if layer["movement"] in ["vertical", "both"]:
-            layer_config["animations"].append({
-                "type": "translateY",
-                "amplitude": 20 * depth_factor,
-                "frequency": 1 / (layer["animation_speed"] * 1.2),
-                "phase": 0.25  # 位相をずらして自然な動きに
-            })
-        
-        # スケールアニメーション（呼吸効果）
-        layer_config["animations"].append({
-            "type": "scale",
-            "amplitude": 0.05 * (1 - depth_factor),  # 手前の層ほど大きくスケール変化
-            "frequency": 1 / (layer["animation_speed"] * 2),
-            "phase": 0.5
-        })
-        
-        config["layers"].append(layer_config)
-    
-    return config
-
 def request_gemini_image(
     prompt: str,
     seed: int,
     base_image: Optional[bytes] = None,
     negative_prompt: Optional[str] = None,
     response_modalities: Optional[List[str]] = None,
+    outfit_image: Optional[str] = None,
 ) -> bytes:
     """Gemini 2.5 Flash Image Previewに画像生成/編集をリクエスト"""
 
@@ -618,6 +156,7 @@ def request_gemini_image(
     log_payload = {
         "prompt_preview": prompt_with_negative[:200],
         "has_base_image": bool(base_image),
+        "has_outfit_image": bool(outfit_image),
         "seed": seed,
         "location": LOCATION,
         "project_id": PROJECT_ID,
@@ -639,10 +178,21 @@ def request_gemini_image(
         logger.error(f"Failed to get token. Credentials type: {type(credentials).__name__}")
         logger.error(f"Credentials attributes: {dir(credentials)}")
         raise Exception("Failed to acquire access token for Gemini API")
-    
+
     logger.info(f"Token acquired successfully (length: {len(token)}...{token[-10:] if len(token) > 10 else token})")
 
     parts: List[Dict[str, Any]] = []
+    # 服装画像がある場合は最初に追加（参照として）
+    if outfit_image:
+        parts.append(
+            {
+                "inline_data": {
+                    "mime_type": "image/png",
+                    "data": outfit_image,
+                }
+            }
+        )
+    # ベース画像（表情差分用）
     if base_image:
         parts.append(
             {
@@ -1386,7 +936,7 @@ def generate_emo_with_vertex(character: EmoCharacter) -> List[bytes]:
         logger.error(f"Emo image generation error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Emo image generation failed: {str(e)}")
 
-def create_fantasy_prompt(character: FantasyCharacter) -> str:
+def create_fantasy_prompt(character: FantasyCharacter, include_outfit: bool = True) -> str:
     """ファンタジーキャラクター用のプロンプトを作成"""
 
     # 頭身の設定
@@ -1398,11 +948,15 @@ def create_fantasy_prompt(character: FantasyCharacter) -> str:
 
     height_desc = height_mapping.get(character.height, height_mapping["medium"])
 
-    # 服装の説明を決定（画像ベースの説明がある場合は優先）
-    outfit_description = character.outfit_from_image if character.outfit_from_image else character.outfit
-    logger.info(f"Using outfit description: {'IMAGE-BASED' if character.outfit_from_image else 'TEXT-BASED'} - {outfit_description[:100]}...")
+    # 服装画像がある場合はプロンプトに服装説明を含めない
+    if character.outfit_image_base64 and not include_outfit:
+        outfit_part = "wearing the outfit shown in the reference image"
+        logger.info("Using outfit from reference image, excluding text description from prompt")
+    else:
+        outfit_part = f"wearing {character.outfit}"
+        logger.info(f"Using outfit text description: {character.outfit}")
 
-    prompt = f"""A high-quality fantasy character illustration in the style of premium Japanese mobile games, featuring a beautiful anime-style character with {character.hair_length} {character.hair_color} hair in {character.hair_style} style, wearing {outfit_description}. The character has {character.eye_shape} eyes in {character.eye_color} color, showing {character.expression} that captures their personality.
+    prompt = f"""A high-quality fantasy character illustration in the style of premium Japanese mobile games, featuring a beautiful anime-style character with {character.hair_length} {character.hair_color} hair in {character.hair_style} style, {outfit_part}. The character has {character.eye_shape} eyes in {character.eye_color} color, showing {character.expression} that captures their personality.
 
 The character is shown in full body standing pose against a pure black background (#000000), displaying the entire outfit from head to toe. The character should have {height_desc}.
 
@@ -1451,12 +1005,13 @@ def generate_fantasy_with_vertex(character: FantasyCharacter) -> List[bytes]:
         environmental elements, background objects, multiple characters, chibi style,
         deformed features, floating particles, magical auras, energy effects"""
 
-        base_prompt = create_fantasy_prompt(character)
+        # 服装画像がある場合は、プロンプトから服装説明を除外
+        base_prompt = create_fantasy_prompt(character, include_outfit=not bool(character.outfit_image_base64))
         logger.info(f"Generated fantasy prompt (len={len(base_prompt)}) for character {character.character_id}")
 
         images: List[bytes] = []
 
-        # 1枚目: テキストから生成
+        # 1枚目: テキスト(+服装画像)から生成
         first_name, first_desc = expressions[0]
         first_prompt = f"{base_prompt}\nExpression: {first_desc}"
         logger.info(f"Creating base fantasy image for expression: {first_name}")
@@ -1464,6 +1019,7 @@ def generate_fantasy_with_vertex(character: FantasyCharacter) -> List[bytes]:
             first_prompt,
             character.seed,
             negative_prompt=negative_prompt,
+            outfit_image=character.outfit_image_base64,
         )
         images.append(base_image)
 
@@ -1498,6 +1054,7 @@ This is image editing task, not new image generation. Preserve all visual detail
                     character.seed + (hash(expression_name) % 1000),  # シード値を少し変更
                     base_image=base_image,
                     negative_prompt=negative_prompt,
+                    outfit_image=character.outfit_image_base64,
                 )
                 logger.info(f"Successfully generated fantasy expression: {expression_name}")
                 return result
@@ -1512,6 +1069,7 @@ This is image editing task, not new image generation. Preserve all visual detail
                     fallback_prompt,
                     character.seed + (hash(expression_name) % 1000),
                     negative_prompt=negative_prompt,
+                    outfit_image=character.outfit_image_base64,
                 )
         
         # ThreadPoolExecutorで並列実行

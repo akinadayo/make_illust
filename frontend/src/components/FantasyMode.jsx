@@ -12,48 +12,39 @@ function FantasyMode({ setGeneratedImages, isGenerating, setIsGenerating }) {
   const [expression, setExpression] = useState('')
   const [error, setError] = useState('')
   const [outfitImage, setOutfitImage] = useState(null)
-  const [outfitFromImage, setOutfitFromImage] = useState('')
-  const [analyzingOutfit, setAnalyzingOutfit] = useState(false)
+  const [outfitImageBase64, setOutfitImageBase64] = useState('')
 
   const handleOutfitImageUpload = async (e) => {
     const file = e.target.files[0]
     if (!file) return
 
-    setOutfitImage(file)
-    setAnalyzingOutfit(true)
     setError('')
 
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'https://standing-set-backend-812480532939.asia-northeast1.run.app'
-
-      const formData = new FormData()
-      formData.append('image_file', file)
-
-      const response = await fetch(`${apiUrl}/api/analyze-outfit`, {
-        method: 'POST',
-        body: formData
-      })
-
-      if (!response.ok) {
-        throw new Error(`服装解析エラー: ${response.status}`)
+      // 画像をbase64にエンコード
+      const reader = new FileReader()
+      reader.onload = (event) => {
+        const base64String = event.target.result.split(',')[1] // data:image/xxx;base64, を除去
+        setOutfitImageBase64(base64String)
+        setOutfitImage(file)
       }
-
-      const data = await response.json()
-      setOutfitFromImage(data.outfit_description)
-      setError('')
+      reader.onerror = () => {
+        setError('画像の読み込みに失敗しました')
+        setOutfitImage(null)
+        setOutfitImageBase64('')
+      }
+      reader.readAsDataURL(file)
     } catch (err) {
-      console.error('Outfit analysis error:', err)
-      setError(`服装の解析に失敗しました: ${err.message}`)
+      console.error('Outfit image upload error:', err)
+      setError(`画像のアップロードに失敗しました: ${err.message}`)
       setOutfitImage(null)
-      setOutfitFromImage('')
-    } finally {
-      setAnalyzingOutfit(false)
+      setOutfitImageBase64('')
     }
   }
 
   const generateFantasyImages = async () => {
     // 服装は画像アップロードまたはテキスト入力のどちらかがあればOK
-    const hasOutfit = outfit.trim() || outfitFromImage
+    const hasOutfit = outfit.trim() || outfitImageBase64
 
     if (!hairLength.trim() || !hairColor.trim() || !hairStyle.trim() ||
         !hasOutfit || !eyeShape.trim() || !eyeColor.trim() || !expression.trim()) {
@@ -72,7 +63,7 @@ function FantasyMode({ setGeneratedImages, isGenerating, setIsGenerating }) {
       hair_color: hairColor,
       hair_style: hairStyle,
       outfit: outfit || 'default outfit',  // 画像がある場合はダミー値
-      outfit_from_image: outfitFromImage || null,
+      outfit_image_base64: outfitImageBase64 || null,
       eye_shape: eyeShape,
       eye_color: eyeColor,
       expression: expression
@@ -183,7 +174,7 @@ function FantasyMode({ setGeneratedImages, isGenerating, setIsGenerating }) {
     setError('')
     setGeneratedImages([])
     setOutfitImage(null)
-    setOutfitFromImage('')
+    setOutfitImageBase64('')
   }
 
   return (
@@ -254,7 +245,7 @@ function FantasyMode({ setGeneratedImages, isGenerating, setIsGenerating }) {
             />
           </div>
 
-          {!outfitFromImage && (
+          {!outfitImageBase64 && (
             <div className="form-group">
               <label>服装（またはテキストの代わりに画像アップロード）</label>
               <input
@@ -268,25 +259,20 @@ function FantasyMode({ setGeneratedImages, isGenerating, setIsGenerating }) {
           )}
 
           <div className="form-group">
-            <label>服装画像をアップロード{!outfitFromImage && '（オプション）'}</label>
+            <label>服装画像をアップロード{!outfitImageBase64 && '（オプション）'}</label>
             <input
               type="file"
               accept="image/*"
               onChange={handleOutfitImageUpload}
               className="fantasy-input-file"
-              disabled={analyzingOutfit || isGenerating}
+              disabled={isGenerating}
             />
-            {analyzingOutfit && (
-              <div className="analyzing-message">
-                服装を解析中...
-              </div>
-            )}
-            {outfitFromImage && (
+            {outfitImageBase64 && (
               <div className="outfit-analysis-result">
-                ✓ 解析完了: {outfitFromImage.substring(0, 100)}...
+                ✓ 画像アップロード完了: {outfitImage.name}
                 <button
                   onClick={() => {
-                    setOutfitFromImage('')
+                    setOutfitImageBase64('')
                     setOutfitImage(null)
                   }}
                   className="remove-image-btn"
