@@ -70,6 +70,64 @@ function FantasyMode({ setGeneratedImages, isGenerating, setIsGenerating }) {
     }
   }
 
+  const randomize = () => {
+    // ランダムデータの配列
+    const hairLengths = ['long', 'medium', 'short', 'very long', 'shoulder-length']
+    const hairColors = [
+      'black', 'dark brown', 'brown', 'light brown', 'chestnut',
+      'blonde', 'platinum blonde', 'silver', 'white',
+      'red', 'auburn', 'pink', 'purple', 'blue', 'green'
+    ]
+    const hairStyles = [
+      'straight', 'wavy', 'curly', 'ponytail', 'twintails', 'braided',
+      'bob cut', 'pixie cut', 'messy', 'elegant updo', 'half-up',
+      'side ponytail', 'twin braids', 'long flowing'
+    ]
+    const outfits = [
+      'knight armor', 'light armor', 'heavy armor', 'battle dress',
+      'mage robe', 'wizard cloak', 'scholar outfit',
+      'elegant dress', 'noble dress', 'princess gown', 'ball gown',
+      'adventurer gear', 'ranger outfit', 'thief outfit',
+      'priestess robe', 'nun outfit', 'shrine maiden',
+      'fantasy kimono', 'eastern dress', 'casual fantasy outfit'
+    ]
+    const eyeShapes = [
+      'large round', 'almond-shaped', 'narrow', 'upturned', 'droopy',
+      'sharp', 'gentle', 'cat-like', 'innocent round'
+    ]
+
+    // 目の色は自然な色が多め（重み付け）
+    const eyeColors = [
+      ...['black', 'dark brown', 'brown'].flatMap(c => Array(5).fill(c)), // 自然な色を5倍
+      ...['navy blue', 'dark blue'].flatMap(c => Array(3).fill(c)), // 紺系を3倍
+      ...['gray', 'dark gray'].flatMap(c => Array(2).fill(c)), // グレー系を2倍
+      'hazel', 'amber', 'green', 'light brown',
+      'blue', 'violet', 'red', 'gold', 'silver',
+      'heterochromia (brown and blue)', 'heterochromia (green and brown)'
+    ]
+
+    const expressions = [
+      'confident', 'mysterious', 'gentle', 'cheerful', 'serious',
+      'shy', 'proud', 'determined', 'melancholic', 'playful',
+      'calm', 'fierce', 'kind', 'aloof', 'charming'
+    ]
+
+    const heights = ['small', 'medium', 'tall']
+
+    // ランダムに選択
+    const randomChoice = (arr) => arr[Math.floor(Math.random() * arr.length)]
+
+    setHairLength(randomChoice(hairLengths))
+    setHairColor(randomChoice(hairColors))
+    setHairStyle(randomChoice(hairStyles))
+    setOutfit(randomChoice(outfits))
+    setEyeShape(randomChoice(eyeShapes))
+    setEyeColor(randomChoice(eyeColors))
+    setExpression(randomChoice(expressions))
+    setHeight(randomChoice(heights))
+    setError('')
+  }
+
   const reset = () => {
     setHairLength('')
     setHairColor('')
@@ -210,15 +268,22 @@ function FantasyMode({ setGeneratedImages, isGenerating, setIsGenerating }) {
           )}
 
           <div className="action-buttons">
-            <button 
-              onClick={generateFantasyImages} 
+            <button
+              onClick={randomize}
+              className="random-button"
+              disabled={isGenerating}
+            >
+              🎲 ランダム入力
+            </button>
+            <button
+              onClick={generateFantasyImages}
               className="generate-button"
               disabled={isGenerating}
             >
               {isGenerating ? '生成中...' : 'キャラクターを生成'}
             </button>
-            <button 
-              onClick={reset} 
+            <button
+              onClick={reset}
               className="reset-button"
               disabled={isGenerating}
             >
