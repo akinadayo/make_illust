@@ -254,19 +254,21 @@ function FantasyMode({ setGeneratedImages, isGenerating, setIsGenerating }) {
             />
           </div>
 
-          <div className="form-group">
-            <label>服装</label>
-            <input
-              type="text"
-              value={outfit}
-              onChange={(e) => setOutfit(e.target.value)}
-              placeholder="例: knight armor, mage robe, elegant dress"
-              className="fantasy-input"
-            />
-          </div>
+          {!outfitFromImage && (
+            <div className="form-group">
+              <label>服装（またはテキストの代わりに画像アップロード）</label>
+              <input
+                type="text"
+                value={outfit}
+                onChange={(e) => setOutfit(e.target.value)}
+                placeholder="例: knight armor, mage robe, elegant dress"
+                className="fantasy-input"
+              />
+            </div>
+          )}
 
           <div className="form-group">
-            <label>服装画像をアップロード（オプション）</label>
+            <label>服装画像をアップロード{!outfitFromImage && '（オプション）'}</label>
             <input
               type="file"
               accept="image/*"
@@ -282,6 +284,16 @@ function FantasyMode({ setGeneratedImages, isGenerating, setIsGenerating }) {
             {outfitFromImage && (
               <div className="outfit-analysis-result">
                 ✓ 解析完了: {outfitFromImage.substring(0, 100)}...
+                <button
+                  onClick={() => {
+                    setOutfitFromImage('')
+                    setOutfitImage(null)
+                  }}
+                  className="remove-image-btn"
+                  disabled={isGenerating}
+                >
+                  × 削除
+                </button>
               </div>
             )}
           </div>
