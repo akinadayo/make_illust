@@ -983,7 +983,7 @@ The artistic style should embody the sophisticated digital painting techniques s
 
 The background must be completely white (#FFFFFF) to make the character stand out as a game asset or character portrait. No environmental elements, only the character against the white void.
 
-CRITICAL: To ensure proper background removal, NEVER use pure white (#FFFFFF) for hair or clothing colors. Always use off-white, cream (#FFF8F0, #FFFEF7), light gray (#F5F5F5, #FAFAFA), or very pale pastels instead of pure white. For white hair, use platinum blonde (#F5F0E8), silver-white (#F0F0F0), or cream-white (#FFFEF5). For white clothing, use ivory (#FFFFF0), cream (#FFF8F0), or off-white (#FAFAF5). This is essential to distinguish character elements from the white background during transparency processing.
+CRITICAL: To ensure proper background removal, NEVER use pure white (#FFFFFF) for hair, clothing, or skin colors. Always use off-white, cream (#FFF8F0, #FFFEF7), light gray (#F5F5F5, #FAFAFA), or very pale pastels instead of pure white. For white hair, use platinum blonde (#F5F0E8), silver-white (#F0F0F0), or cream-white (#FFFEF5). For white clothing, use ivory (#FFFFF0), cream (#FFF8F0), or off-white (#FAFAF5). For skin tones, use warm peachy tones (#FFE5D9, #FFDCC5, #FFF0E5) or natural beige (#F5E6D3) - NEVER use white or very pale colors that are close to white (#FFFFFF, #FAFAFA). Knees, elbows, and all body parts must have clearly visible skin color distinct from the background. This is essential to distinguish character elements from the white background during transparency processing.
 
 For the coloring technique, employ a refined cel-shading approach with two distinct shadow layers. Shadows should be very subtle - first shadow only 8-10% darker than base color, second shadow 15-20% darker. Use warm gray or beige tones for shadows instead of pure darker colors. Blend shadows softly with gradient transitions.
 
@@ -1120,21 +1120,39 @@ This is image editing task, not new image generation. Preserve all visual detail
                     all_images.append(results_outfit1[i])
 
         # === 2セット目: 私服（適当）で6枚の表情差分 ===
-        logger.info("Generating second set: casual outfit with 6 expressions")
+        logger.info("Generating second set: casual outfit with 6 expressions using base image as reference")
 
-        # 私服用のプロンプトを作成（outfit_image_base64を無視して、適当な私服を指定）
-        casual_outfit_prompt = create_fantasy_prompt(character, include_outfit=True)
-        # 服装部分を「casual outfit」に置き換え
-        casual_outfit_prompt = casual_outfit_prompt.replace(f"wearing {character.outfit}", "wearing casual modern outfit (t-shirt, jeans, or hoodie with skirt, etc.)")
+        # 制服の1枚目を参照にして、服装だけ私服に変更
+        casual_change_prompt = f"""CRITICAL INSTRUCTION: Edit the provided reference image to change ONLY the outfit to casual clothing.
 
-        # 1枚目（私服版）
-        casual_first_prompt = f"{casual_outfit_prompt}\nExpression: {expressions[0][1]}"
-        logger.info(f"Creating base casual outfit image")
+Target outfit: Casual modern outfit (comfortable t-shirt or hoodie, jeans or casual skirt, sneakers or casual shoes)
+
+MUST KEEP EXACTLY THE SAME:
+- Character's face, facial features, and expression
+- Hair style, color, and length
+- Eye color and shape
+- Skin tone
+- Body proportions and pose
+- Background (pure white)
+- Art style and color palette
+- Character identity (this must be the EXACT same character, just wearing different clothes)
+
+ONLY CHANGE:
+- Outfit from uniform/formal wear to casual modern clothing
+- Keep the outfit coordinated and stylish but casual
+- Maintain same level of detail in clothing
+
+Expression: {expressions[0][1]}
+
+This is an outfit change task. The character's appearance, face, hair, and proportions must remain IDENTICAL to the reference image."""
+
+        logger.info(f"Creating base casual outfit image using reference")
         base_image_casual = request_gemini_image(
-            casual_first_prompt,
-            character.seed + 10000,  # シードを大きく変更
+            casual_change_prompt,
+            character.seed + 5000,  # シードを変更
+            base_image=base_image_outfit1,  # 制服の1枚目を参照
             negative_prompt=negative_prompt,
-            outfit_image=None,  # 服装画像は使わない
+            outfit_image=None,
         )
         all_images.append(base_image_casual)
 
