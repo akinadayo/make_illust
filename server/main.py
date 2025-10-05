@@ -627,60 +627,77 @@ def remove_green_background(image_bytes: bytes) -> bytes:
             return image_bytes
 
 def remove_black_background(image_bytes: bytes) -> bytes:
-    """黒背景を透明にする - ファンタジーモード用"""
+    """黒背景を透明にする - ファンタジーモード用（強化版）"""
     try:
-        # Step 1: rembgで初期背景除去
-        logger.info("Starting rembg background removal for black background")
-        removed = remove(image_bytes, alpha_matting=True, alpha_matting_foreground_threshold=240, alpha_matting_background_threshold=50)
+        # Step 1: rembgで初期背景除去（より強力な設定）
+        logger.info("Starting enhanced rembg background removal for black background")
+        removed = remove(
+            image_bytes,
+            alpha_matting=True,
+            alpha_matting_foreground_threshold=250,  # より高い閾値
+            alpha_matting_background_threshold=10,    # より低い閾値で背景を積極的に除去
+            alpha_matting_erode_size=10               # エッジを拡張して黒残りを減らす
+        )
 
-        # Step 2: PILで追加のクリーンアップ処理
+        # Step 2: PILで追加の積極的なクリーンアップ処理
         img = Image.open(io.BytesIO(removed)).convert("RGBA")
         width, height = img.size
         pixels = img.load()
 
-        # エッジの黒アーティファクトを除去
+        # より積極的に黒を除去
         for y in range(height):
             for x in range(width):
                 r, g, b, a = pixels[x, y]
 
-                # 半透明部分の黒成分を調整
+                # 半透明部分の処理
                 if 0 < a < 255:
-                    # 暗いピクセルを検出
-                    if r < 30 and g < 30 and b < 30:
-                        # 透明度を調整
+                    # 暗いピクセルを検出（閾値を上げて、より多くの暗いピクセルを透明化）
+                    if r < 50 and g < 50 and b < 50:
                         pixels[x, y] = (r, g, b, 0)
-
                     # 透明度が低い場合は完全に透明にする
-                    elif a < 30:
+                    elif a < 50:
                         pixels[x, y] = (r, g, b, 0)
                     # 透明度が高い場合は完全に不透明にする
-                    elif a > 225:
+                    elif a > 200:
                         pixels[x, y] = (r, g, b, 255)
 
-                # 完全に不透明な黒っぽいピクセルもチェック
+                # 完全に不透明なピクセル
                 elif a == 255:
-                    # 明らかな黒エッジを検出
-                    if r < 30 and g < 30 and b < 30:
-                        # 隣接ピクセルをチェックして、エッジかどうか判定
-                        is_edge = False
-                        for dx in [-1, 0, 1]:
-                            for dy in [-1, 0, 1]:
+                    # 黒っぽいピクセルを検出（閾値を上げる）
+                    if r < 50 and g < 50 and b < 50:
+                        # 孤立した黒ピクセルまたはエッジの黒を除去
+                        # 周囲3x3の範囲をチェック
+                        transparent_neighbors = 0
+                        total_neighbors = 0
+
+                        for dx in range(-1, 2):
+                            for dy in range(-1, 2):
                                 if dx == 0 and dy == 0:
                                     continue
                                 nx, ny = x + dx, y + dy
                                 if 0 <= nx < width and 0 <= ny < height:
+                                    total_neighbors += 1
                                     _, _, _, na = pixels[nx, ny]
-                                    if na < 255:
-                                        is_edge = True
-                                        break
-                            if is_edge:
-                                break
+                                    if na < 200:
+                                        transparent_neighbors += 1
 
-                        # エッジの黒を透明にする
-                        if is_edge:
+                        # 透明な隣接ピクセルが多い場合は黒を透明化
+                        if transparent_neighbors > 0 or total_neighbors < 8:
                             pixels[x, y] = (r, g, b, 0)
 
-        # Step 3: 結果を保存
+        # Step 3: 追加のエロージョン処理（黒残りをさらに削除）
+        # もう一度ピクセルをスキャンして、孤立した暗いピクセルを削除
+        for y in range(height):
+            for x in range(width):
+                r, g, b, a = pixels[x, y]
+
+                # アルファ値が低いピクセルの周囲をチェック
+                if a > 0 and a < 200:
+                    brightness = (r + g + b) / 3
+                    if brightness < 40:
+                        pixels[x, y] = (r, g, b, 0)
+
+        # Step 4: 結果を保存
         buffer = io.BytesIO()
         img.save(buffer, format="PNG", optimize=True)
         return buffer.getvalue()
