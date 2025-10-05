@@ -983,13 +983,15 @@ The artistic style should embody the sophisticated digital painting techniques s
 
 The background must be completely white (#FFFFFF) to make the character stand out as a game asset or character portrait. No environmental elements, only the character against the white void.
 
+CRITICAL: To ensure proper background removal, NEVER use pure white (#FFFFFF) for hair or clothing colors. Always use off-white, cream (#FFF8F0, #FFFEF7), light gray (#F5F5F5, #FAFAFA), or very pale pastels instead of pure white. For white hair, use platinum blonde (#F5F0E8), silver-white (#F0F0F0), or cream-white (#FFFEF5). For white clothing, use ivory (#FFFFF0), cream (#FFF8F0), or off-white (#FAFAF5). This is essential to distinguish character elements from the white background during transparency processing.
+
 For the coloring technique, employ a refined cel-shading approach with two distinct shadow layers. Shadows should be very subtle - first shadow only 8-10% darker than base color, second shadow 15-20% darker. Use warm gray or beige tones for shadows instead of pure darker colors. Blend shadows softly with gradient transitions.
 
 Apply an overall atmospheric haze effect - as if viewing through soft focus or morning mist. Colors should blend into each other gently at the edges. Use opacity layers around 70-80% to create translucent, layered color effects.
 
 The character's face should feature the distinctive anime style with large, expressive eyes that take up about 25-30% of the face area. Eye colors should be desaturated and soft - even bright colors like blue or green should appear gentle and muted.
 
-Hair colors should be soft and muted - even vibrant colors like pink or blue should appear dusty and gentle, as if faded by sunlight. All clothing colors should be desaturated and soft - whites should be off-white or cream, blacks should be charcoal gray, bright colors should be dusty and muted.
+Hair colors should be soft and muted - even vibrant colors like pink or blue should appear dusty and gentle, as if faded by sunlight. NEVER use pure white for hair - white hair must be platinum blonde, silver-white, or cream-white. All clothing colors should be desaturated and soft - whites must always be off-white (#FFF8F0), cream (#FFFEF5), or ivory (#FFFFF0), NEVER pure white (#FFFFFF). Blacks should be charcoal gray, bright colors should be dusty and muted.
 
 Show the full body including legs and feet, with appropriate footwear that matches the outfit style.
 
