@@ -626,6 +626,75 @@ def remove_green_background(image_bytes: bytes) -> bytes:
             # 最終フォールバック: オリジナル画像を返す
             return image_bytes
 
+def remove_black_background(image_bytes: bytes) -> bytes:
+    """黒背景を透明にする - ファンタジーモード用"""
+    try:
+        # Step 1: rembgで初期背景除去
+        logger.info("Starting rembg background removal for black background")
+        removed = remove(image_bytes, alpha_matting=True, alpha_matting_foreground_threshold=240, alpha_matting_background_threshold=50)
+
+        # Step 2: PILで追加のクリーンアップ処理
+        img = Image.open(io.BytesIO(removed)).convert("RGBA")
+        width, height = img.size
+        pixels = img.load()
+
+        # エッジの黒アーティファクトを除去
+        for y in range(height):
+            for x in range(width):
+                r, g, b, a = pixels[x, y]
+
+                # 半透明部分の黒成分を調整
+                if 0 < a < 255:
+                    # 暗いピクセルを検出
+                    if r < 30 and g < 30 and b < 30:
+                        # 透明度を調整
+                        pixels[x, y] = (r, g, b, 0)
+
+                    # 透明度が低い場合は完全に透明にする
+                    elif a < 30:
+                        pixels[x, y] = (r, g, b, 0)
+                    # 透明度が高い場合は完全に不透明にする
+                    elif a > 225:
+                        pixels[x, y] = (r, g, b, 255)
+
+                # 完全に不透明な黒っぽいピクセルもチェック
+                elif a == 255:
+                    # 明らかな黒エッジを検出
+                    if r < 30 and g < 30 and b < 30:
+                        # 隣接ピクセルをチェックして、エッジかどうか判定
+                        is_edge = False
+                        for dx in [-1, 0, 1]:
+                            for dy in [-1, 0, 1]:
+                                if dx == 0 and dy == 0:
+                                    continue
+                                nx, ny = x + dx, y + dy
+                                if 0 <= nx < width and 0 <= ny < height:
+                                    _, _, _, na = pixels[nx, ny]
+                                    if na < 255:
+                                        is_edge = True
+                                        break
+                            if is_edge:
+                                break
+
+                        # エッジの黒を透明にする
+                        if is_edge:
+                            pixels[x, y] = (r, g, b, 0)
+
+        # Step 3: 結果を保存
+        buffer = io.BytesIO()
+        img.save(buffer, format="PNG", optimize=True)
+        return buffer.getvalue()
+
+    except Exception as e:
+        logger.error(f"Black background removal failed: {e}")
+        # フォールバック処理
+        try:
+            return remove(image_bytes)  # 基本的なrembg処理にフォールバック
+        except Exception as fallback_error:
+            logger.error(f"Fallback removal also failed: {fallback_error}")
+            # 最終フォールバック: オリジナル画像を返す
+            return image_bytes
+
 def create_simple_prompt_without_expression(character: SimpleCharacter) -> str:
     """簡略化されたキャラクター情報から仕様書フォーマットのプロンプトを作成"""
     
@@ -1098,9 +1167,17 @@ This is image editing task, not new image generation. Preserve all visual detail
             for i in range(1, 6):
                 if i in results:
                     images.append(results[i])
-                    
-        logger.info(f"Generated {len(images)} fantasy images successfully")
-        return images
+
+        # 背景除去処理を適用
+        logger.info("Applying black background removal to all fantasy images")
+        processed_images = []
+        for idx, img_bytes in enumerate(images):
+            logger.info(f"Removing background from fantasy image {idx + 1}/{len(images)}")
+            processed = remove_black_background(img_bytes)
+            processed_images.append(processed)
+
+        logger.info(f"Generated and processed {len(processed_images)} fantasy images successfully")
+        return processed_images
 
     except Exception as e:
         logger.error(f"Fantasy image generation error: {str(e)}")
