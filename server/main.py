@@ -995,7 +995,7 @@ def generate_fantasy_with_vertex(character: FantasyCharacter) -> List[bytes]:
     try:
         expressions = [
             ("neutral", f"{character.expression} - base expression showing character's default mood"),
-            ("pouting", "pouting expression with puffed cheeks and slightly pursed lips, showing displeasure"),
+            ("smile", "gentle smile with slightly raised mouth corners and warm soft eyes"),
             ("troubled", "troubled/worried expression with furrowed brows and slightly downturned mouth"),
             ("big_smile", "bright beaming smile with wide grin, showing pure joy and happiness"),
             ("sad", "sad expression with downcast eyes and slight frown, showing sorrow"),
