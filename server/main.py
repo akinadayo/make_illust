@@ -235,9 +235,21 @@ async def analyze_outfit(image_file: UploadFile = File(...)):
     try:
         # 画像データを読み込み
         image_bytes = await image_file.read()
+        logger.info(f"Received outfit image: {image_file.filename}, size: {len(image_bytes)} bytes")
 
-        # 画像をリサイズ
+        # 画像をリサイズ（元の形式を保持してからPNGに変換）
         img = Image.open(io.BytesIO(image_bytes))
+
+        # RGBに変換（透過を削除、JPEG互換に）
+        if img.mode in ('RGBA', 'LA', 'P'):
+            background = Image.new('RGB', img.size, (255, 255, 255))
+            if img.mode == 'P':
+                img = img.convert('RGBA')
+            background.paste(img, mask=img.split()[-1] if img.mode in ('RGBA', 'LA') else None)
+            img = background
+        elif img.mode != 'RGB':
+            img = img.convert('RGB')
+
         img.thumbnail((1024, 1024), Image.Resampling.LANCZOS)
 
         buffer = io.BytesIO()
@@ -246,6 +258,7 @@ async def analyze_outfit(image_file: UploadFile = File(...)):
 
         # Gemini 1.5 Flashで服装を解析
         outfit_description = analyze_outfit_with_gemini(image_base64)
+        logger.info(f"Outfit analysis successful: {outfit_description[:100]}...")
 
         return JSONResponse(content={
             "status": "success",
@@ -1387,6 +1400,7 @@ def create_fantasy_prompt(character: FantasyCharacter) -> str:
 
     # 服装の説明を決定（画像ベースの説明がある場合は優先）
     outfit_description = character.outfit_from_image if character.outfit_from_image else character.outfit
+    logger.info(f"Using outfit description: {'IMAGE-BASED' if character.outfit_from_image else 'TEXT-BASED'} - {outfit_description[:100]}...")
 
     prompt = f"""A high-quality fantasy character illustration in the style of premium Japanese mobile games, featuring a beautiful anime-style character with {character.hair_length} {character.hair_color} hair in {character.hair_style} style, wearing {outfit_description}. The character has {character.eye_shape} eyes in {character.eye_color} color, showing {character.expression} that captures their personality.
 
@@ -1457,11 +1471,31 @@ def generate_fantasy_with_vertex(character: FantasyCharacter) -> List[bytes]:
         def generate_expression(expression_data):
             expression_name, expression_desc = expression_data
             logger.info(f"Starting parallel generation for fantasy expression: {expression_name}")
-            edit_prompt = f"{base_prompt}\nEdit the provided image to change ONLY the facial expression to: {expression_desc}\nKeep everything else EXACTLY the same."
+
+            # より明確な編集指示のプロンプト
+            edit_prompt = f"""CRITICAL INSTRUCTION: Edit the provided reference image to change ONLY the facial expression.
+
+Target expression: {expression_desc}
+
+MUST KEEP EXACTLY THE SAME:
+- Character pose and body position
+- Hair style, color, and length
+- Outfit and clothing details
+- Eye color and shape (only change the emotion in the eyes)
+- Background (pure black)
+- Art style and color palette
+- Character proportions
+
+ONLY CHANGE:
+- Facial expression (mouth, eyebrows, eyes emotion)
+- Make it clearly show: {expression_desc}
+
+This is image editing task, not new image generation. Preserve all visual details from the reference image."""
+
             try:
                 result = request_gemini_image(
                     edit_prompt,
-                    character.seed,
+                    character.seed + (hash(expression_name) % 1000),  # シード値を少し変更
                     base_image=base_image,
                     negative_prompt=negative_prompt,
                 )
@@ -1476,7 +1510,7 @@ def generate_fantasy_with_vertex(character: FantasyCharacter) -> List[bytes]:
                 fallback_prompt = f"{base_prompt}\nExpression: {expression_desc}"
                 return request_gemini_image(
                     fallback_prompt,
-                    character.seed,
+                    character.seed + (hash(expression_name) % 1000),
                     negative_prompt=negative_prompt,
                 )
         

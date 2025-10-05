@@ -52,9 +52,12 @@ function FantasyMode({ setGeneratedImages, isGenerating, setIsGenerating }) {
   }
 
   const generateFantasyImages = async () => {
+    // 服装は画像アップロードまたはテキスト入力のどちらかがあればOK
+    const hasOutfit = outfit.trim() || outfitFromImage
+
     if (!hairLength.trim() || !hairColor.trim() || !hairStyle.trim() ||
-        !outfit.trim() || !eyeShape.trim() || !eyeColor.trim() || !expression.trim()) {
-      setError('すべての項目を入力してください')
+        !hasOutfit || !eyeShape.trim() || !eyeColor.trim() || !expression.trim()) {
+      setError('すべての項目を入力してください（服装は画像アップロードまたはテキスト入力が必要です）')
       return
     }
 
@@ -68,7 +71,7 @@ function FantasyMode({ setGeneratedImages, isGenerating, setIsGenerating }) {
       hair_length: hairLength,
       hair_color: hairColor,
       hair_style: hairStyle,
-      outfit: outfit,
+      outfit: outfit || 'default outfit',  // 画像がある場合はダミー値
       outfit_from_image: outfitFromImage || null,
       eye_shape: eyeShape,
       eye_color: eyeColor,
