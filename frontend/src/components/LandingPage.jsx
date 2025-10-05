@@ -35,27 +35,8 @@ const LandingPage = ({ onStart }) => {
     }, []);
 
     const initializeDepthParallax = async () => {
-        try {
-            // Use production API URL if available, otherwise localhost
-            const apiUrl = import.meta.env.VITE_API_URL || 'https://standing-set-backend-812480532939.asia-northeast1.run.app';
-            
-            // Fetch depth estimation from backend
-            const response = await fetch(`${apiUrl}/api/depth-estimation`, {
-                method: 'POST'
-            });
-            
-            if (response.ok) {
-                const data = await response.json();
-                setDepthConfig(data);
-                startParallaxAnimation(data.parallax_config);
-            } else {
-                // Use default parallax if API fails
-                useDefaultParallax();
-            }
-        } catch (error) {
-            console.error('Failed to fetch depth config:', error);
-            useDefaultParallax();
-        }
+        // Use default parallax (depth estimation removed)
+        useDefaultParallax();
         setIsLoading(false);
     };
 

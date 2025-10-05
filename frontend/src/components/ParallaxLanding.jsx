@@ -24,37 +24,9 @@ function ParallaxLanding({ backgroundImage, onStart }) {
     }, []);
 
     useEffect(() => {
-        // 深度推定APIを呼び出して被写体を検出
-        fetchDepthLayers();
+        // Use default layers (depth estimation removed)
+        setDefaultLayers();
     }, [backgroundImage]);
-
-    const fetchDepthLayers = async () => {
-        try {
-            const apiUrl = import.meta.env.VITE_API_URL || 'https://standing-set-backend-812480532939.asia-northeast1.run.app';
-            
-            // 画像をbase64に変換
-            const response = await fetch(backgroundImage);
-            const blob = await response.blob();
-            
-            const formData = new FormData();
-            formData.append('image_file', blob);
-            
-            const depthResponse = await fetch(`${apiUrl}/api/depth-estimation?use_depth_anything=false`, {
-                method: 'POST',
-                body: formData
-            });
-
-            if (depthResponse.ok) {
-                const data = await depthResponse.json();
-                console.log('Depth layers:', data);
-                processDepthData(data);
-            }
-        } catch (error) {
-            console.error('Failed to fetch depth layers:', error);
-            // デフォルトのレイヤー設定を使用
-            setDefaultLayers();
-        }
-    };
 
     const processDepthData = (data) => {
         const depthLayers = data.depth_layers;
