@@ -1080,24 +1080,27 @@ def generate_fantasy_with_vertex(character: FantasyCharacter) -> List[bytes]:
         base_prompt = create_fantasy_prompt(character, include_outfit=not bool(character.outfit_image_base64))
         logger.info(f"Generated fantasy prompt (len={len(base_prompt)}) for character {character.character_id}")
 
-        images: List[bytes] = []
+        all_images: List[bytes] = []
+
+        # === 1セット目: 指定された服装で6枚の表情差分 ===
+        logger.info("Generating first set: specified outfit with 6 expressions")
 
         # 1枚目: テキスト(+服装画像)から生成
         first_name, first_desc = expressions[0]
         first_prompt = f"{base_prompt}\nExpression: {first_desc}"
         logger.info(f"Creating base fantasy image for expression: {first_name}")
-        base_image = request_gemini_image(
+        base_image_outfit1 = request_gemini_image(
             first_prompt,
             character.seed,
             negative_prompt=negative_prompt,
             outfit_image=character.outfit_image_base64,
         )
-        images.append(base_image)
+        all_images.append(base_image_outfit1)
 
-        # 残り3枚: 並列処理で参照画像を使って表情のみ変更
-        def generate_expression(expression_data):
+        # 残り5枚: 並列処理で参照画像を使って表情のみ変更
+        def generate_expression_outfit1(expression_data):
             expression_name, expression_desc = expression_data
-            logger.info(f"Starting parallel generation for fantasy expression: {expression_name}")
+            logger.info(f"Starting parallel generation for outfit1 expression: {expression_name}")
 
             # より明確な編集指示のプロンプト
             edit_prompt = f"""CRITICAL INSTRUCTION: Edit the provided reference image to change ONLY the facial expression.
@@ -1122,16 +1125,16 @@ This is image editing task, not new image generation. Preserve all visual detail
             try:
                 result = request_gemini_image(
                     edit_prompt,
-                    character.seed + (hash(expression_name) % 1000),  # シード値を少し変更
-                    base_image=base_image,
+                    character.seed + (hash(expression_name) % 1000),
+                    base_image=base_image_outfit1,
                     negative_prompt=negative_prompt,
                     outfit_image=character.outfit_image_base64,
                 )
-                logger.info(f"Successfully generated fantasy expression: {expression_name}")
+                logger.info(f"Successfully generated outfit1 expression: {expression_name}")
                 return result
             except Exception as edit_error:
                 logger.warning(
-                    "Gemini edit failed for fantasy %s, fallback to fresh generation: %s",
+                    "Gemini edit failed for outfit1 %s, fallback to fresh generation: %s",
                     expression_name,
                     edit_error,
                 )
@@ -1142,41 +1145,132 @@ This is image editing task, not new image generation. Preserve all visual detail
                     negative_prompt=negative_prompt,
                     outfit_image=character.outfit_image_base64,
                 )
-        
+
         # ThreadPoolExecutorで並列実行
-        logger.info("Starting parallel generation for 5 fantasy expression variations")
+        logger.info("Starting parallel generation for 5 outfit1 expression variations")
         with ThreadPoolExecutor(max_workers=5) as executor:
             future_to_expression = {
-                executor.submit(generate_expression, exp_data): idx 
+                executor.submit(generate_expression_outfit1, exp_data): idx
                 for idx, exp_data in enumerate(expressions[1:], start=1)
             }
-            
-            results = {}
-            
+
+            results_outfit1 = {}
+
             for future in as_completed(future_to_expression):
                 idx = future_to_expression[future]
                 try:
                     result = future.result(timeout=120)
-                    results[idx] = result
-                    logger.info(f"Fantasy expression {idx} generated successfully")
+                    results_outfit1[idx] = result
+                    logger.info(f"Outfit1 expression {idx} generated successfully")
                 except Exception as e:
-                    logger.error(f"Failed to generate fantasy expression {idx}: {e}")
+                    logger.error(f"Failed to generate outfit1 expression {idx}: {e}")
                     raise
-            
+
             # 順番通りに追加
             for i in range(1, 6):
-                if i in results:
-                    images.append(results[i])
+                if i in results_outfit1:
+                    all_images.append(results_outfit1[i])
+
+        # === 2セット目: 私服（適当）で6枚の表情差分 ===
+        logger.info("Generating second set: casual outfit with 6 expressions")
+
+        # 私服用のプロンプトを作成（outfit_image_base64を無視して、適当な私服を指定）
+        casual_outfit_prompt = create_fantasy_prompt(character, include_outfit=True)
+        # 服装部分を「casual outfit」に置き換え
+        casual_outfit_prompt = casual_outfit_prompt.replace(f"wearing {character.outfit}", "wearing casual modern outfit (t-shirt, jeans, or hoodie with skirt, etc.)")
+
+        # 1枚目（私服版）
+        casual_first_prompt = f"{casual_outfit_prompt}\nExpression: {expressions[0][1]}"
+        logger.info(f"Creating base casual outfit image")
+        base_image_casual = request_gemini_image(
+            casual_first_prompt,
+            character.seed + 10000,  # シードを大きく変更
+            negative_prompt=negative_prompt,
+            outfit_image=None,  # 服装画像は使わない
+        )
+        all_images.append(base_image_casual)
+
+        # 残り5枚（私服版）
+        def generate_expression_casual(expression_data):
+            expression_name, expression_desc = expression_data
+            logger.info(f"Starting parallel generation for casual expression: {expression_name}")
+
+            edit_prompt = f"""CRITICAL INSTRUCTION: Edit the provided reference image to change ONLY the facial expression.
+
+Target expression: {expression_desc}
+
+MUST KEEP EXACTLY THE SAME:
+- Character pose and body position
+- Hair style, color, and length
+- Outfit and clothing details
+- Eye color and shape (only change the emotion in the eyes)
+- Background (pure black)
+- Art style and color palette
+- Character proportions
+
+ONLY CHANGE:
+- Facial expression (mouth, eyebrows, eyes emotion)
+- Make it clearly show: {expression_desc}
+
+This is image editing task, not new image generation. Preserve all visual details from the reference image."""
+
+            try:
+                result = request_gemini_image(
+                    edit_prompt,
+                    character.seed + 10000 + (hash(expression_name) % 1000),
+                    base_image=base_image_casual,
+                    negative_prompt=negative_prompt,
+                    outfit_image=None,
+                )
+                logger.info(f"Successfully generated casual expression: {expression_name}")
+                return result
+            except Exception as edit_error:
+                logger.warning(
+                    "Gemini edit failed for casual %s, fallback to fresh generation: %s",
+                    expression_name,
+                    edit_error,
+                )
+                fallback_prompt = f"{casual_outfit_prompt}\nExpression: {expression_desc}"
+                return request_gemini_image(
+                    fallback_prompt,
+                    character.seed + 10000 + (hash(expression_name) % 1000),
+                    negative_prompt=negative_prompt,
+                    outfit_image=None,
+                )
+
+        logger.info("Starting parallel generation for 5 casual expression variations")
+        with ThreadPoolExecutor(max_workers=5) as executor:
+            future_to_expression_casual = {
+                executor.submit(generate_expression_casual, exp_data): idx
+                for idx, exp_data in enumerate(expressions[1:], start=1)
+            }
+
+            results_casual = {}
+
+            for future in as_completed(future_to_expression_casual):
+                idx = future_to_expression_casual[future]
+                try:
+                    result = future.result(timeout=120)
+                    results_casual[idx] = result
+                    logger.info(f"Casual expression {idx} generated successfully")
+                except Exception as e:
+                    logger.error(f"Failed to generate casual expression {idx}: {e}")
+                    raise
+
+            # 順番通りに追加
+            for i in range(1, 6):
+                if i in results_casual:
+                    all_images.append(results_casual[i])
 
         # 背景除去処理を適用
-        logger.info("Applying black background removal to all fantasy images")
+        logger.info("Applying black background removal to all 12 fantasy images")
         processed_images = []
-        for idx, img_bytes in enumerate(images):
-            logger.info(f"Removing background from fantasy image {idx + 1}/{len(images)}")
+        for idx, img_bytes in enumerate(all_images):
+            logger.info(f"Removing background from fantasy image {idx + 1}/{len(all_images)}")
             processed = remove_black_background(img_bytes)
             processed_images.append(processed)
 
-        logger.info(f"Generated and processed {len(processed_images)} fantasy images successfully")
+        logger.info(f"Generated and processed {len(processed_images)} fantasy images successfully (6 specified outfit + 6 casual outfit)")
         return processed_images
 
     except Exception as e:
