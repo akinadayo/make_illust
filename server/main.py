@@ -287,8 +287,8 @@ def analyze_outfit_with_gemini(image_base64: str) -> str:
         if not token:
             raise Exception("Failed to acquire access token")
 
-        # Gemini 1.5 Flash（画像理解対応）のエンドポイント
-        vision_endpoint = f"https://{LOCATION}-aiplatform.googleapis.com/v1/projects/{PROJECT_ID}/locations/{LOCATION}/publishers/google/models/gemini-1.5-flash:generateContent"
+        # Gemini 1.5 Flash（画像理解対応）のエンドポイント - 安定版を使用
+        vision_endpoint = f"https://{LOCATION}-aiplatform.googleapis.com/v1/projects/{PROJECT_ID}/locations/{LOCATION}/publishers/google/models/gemini-1.5-flash-002:generateContent"
 
         # 服装解析用のプロンプト
         prompt = """この画像の服装を詳細に分析して、ファンタジーキャラクター生成用の説明文を作成してください。
@@ -378,9 +378,9 @@ def analyze_depth_with_gemini(image_base64: str) -> Dict[str, Any]:
         if not token:
             logger.warning("Failed to acquire access token, using default depth layers")
             return get_default_depth_layers()
-        
-        # Gemini 1.5 Flash（画像理解対応）のエンドポイント
-        vision_endpoint = f"https://{LOCATION}-aiplatform.googleapis.com/v1/projects/{PROJECT_ID}/locations/{LOCATION}/publishers/google/models/gemini-1.5-flash:generateContent"
+
+        # Gemini 1.5 Flash（画像理解対応）のエンドポイント - 安定版を使用
+        vision_endpoint = f"https://{LOCATION}-aiplatform.googleapis.com/v1/projects/{PROJECT_ID}/locations/{LOCATION}/publishers/google/models/gemini-1.5-flash-002:generateContent"
         
         # 被写体検知と深度分析用のプロンプト
         prompt = """この画像を分析して、以下の情報をJSON形式で提供してください：
