@@ -26,16 +26,6 @@ except ImportError:
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# BiRefNet imports
-try:
-    import torch
-    from transformers import AutoModelForImageSegmentation
-    import torchvision.transforms as transforms
-    BIREFNET_AVAILABLE = True
-    logger.info("BiRefNet dependencies loaded successfully")
-except ImportError:
-    BIREFNET_AVAILABLE = False
-    logger.warning("BiRefNet dependencies not available, falling back to rembg")
 
 # 起動ログ
 logger.info("Starting Standing Set Backend Service...")
@@ -60,39 +50,6 @@ try:
 except Exception as e:
     logger.warning(f"Failed to get default credentials on startup (will retry on request): {e}")
     # 起動時に失敗しても続行
-
-# BiRefNet model initialization
-birefnet_model = None
-birefnet_transform = None
-device = None
-
-if BIREFNET_AVAILABLE:
-    try:
-        logger.info("Loading BiRefNet model...")
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        logger.info(f"Using device: {device}")
-
-        # Load BiRefNet model from Hugging Face
-        birefnet_model = AutoModelForImageSegmentation.from_pretrained(
-            "ZhengPeng7/BiRefNet",
-            trust_remote_code=True
-        )
-        birefnet_model.to(device)
-        birefnet_model.eval()
-
-        # Define transform
-        birefnet_transform = transforms.Compose([
-            transforms.Resize((1024, 1024)),
-            transforms.ToTensor(),
-            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-        ])
-
-        logger.info("BiRefNet model loaded successfully")
-    except Exception as e:
-        logger.error(f"Failed to load BiRefNet model: {e}")
-        BIREFNET_AVAILABLE = False
-        birefnet_model = None
-        birefnet_transform = None
 
 app = FastAPI(title="Standing-Set-5 API with Google Cloud")
 
@@ -670,133 +627,19 @@ def remove_green_background(image_bytes: bytes) -> bytes:
             # 最終フォールバック: オリジナル画像を返す
             return image_bytes
 
-def remove_background_birefnet(image_bytes: bytes) -> bytes:
-    """BiRefNetを使用した高精度背景除去"""
-    global birefnet_model, birefnet_transform, device
-
-    if not BIREFNET_AVAILABLE or birefnet_model is None:
-        logger.warning("BiRefNet not available, falling back to rembg")
-        return remove_black_background_rembg(image_bytes)
-
+def remove_white_background(image_bytes: bytes) -> bytes:
+    """白背景を透明にする - ファンタジーモード用（rembgで簡単に除去可能）"""
     try:
-        logger.info("Using BiRefNet for background removal")
-
-        # Load image
-        img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
-        original_size = img.size
-
-        # Preprocess
-        input_tensor = birefnet_transform(img).unsqueeze(0).to(device)
-
-        # Inference
-        with torch.no_grad():
-            output = birefnet_model(input_tensor)[-1].sigmoid()
-
-        # Post-process
-        mask = output[0, 0].cpu().numpy()
-        mask = (mask * 255).astype(np.uint8)
-        mask = Image.fromarray(mask).resize(original_size, Image.Resampling.LANCZOS)
-
-        # Apply mask to original image
-        img_rgba = img.convert("RGBA")
-        img_rgba.putalpha(mask)
-
-        # Save to bytes
-        buffer = io.BytesIO()
-        img_rgba.save(buffer, format="PNG", optimize=True)
-        logger.info("BiRefNet background removal successful")
-        return buffer.getvalue()
+        logger.info("Starting rembg background removal for white background")
+        # rembgは白背景の除去が得意なので、シンプルな設定で十分
+        removed = remove(image_bytes)
+        logger.info("White background removal successful")
+        return removed
 
     except Exception as e:
-        logger.error(f"BiRefNet background removal failed: {e}")
-        logger.info("Falling back to rembg")
-        return remove_black_background_rembg(image_bytes)
-
-def remove_black_background_rembg(image_bytes: bytes) -> bytes:
-    """黒背景を透明にする - ファンタジーモード用（強化版）"""
-    try:
-        # Step 1: rembgで初期背景除去（より強力な設定）
-        logger.info("Starting enhanced rembg background removal for black background")
-        removed = remove(
-            image_bytes,
-            alpha_matting=True,
-            alpha_matting_foreground_threshold=250,  # より高い閾値
-            alpha_matting_background_threshold=10,    # より低い閾値で背景を積極的に除去
-            alpha_matting_erode_size=10               # エッジを拡張して黒残りを減らす
-        )
-
-        # Step 2: PILで追加の積極的なクリーンアップ処理
-        img = Image.open(io.BytesIO(removed)).convert("RGBA")
-        width, height = img.size
-        pixels = img.load()
-
-        # より積極的に黒を除去
-        for y in range(height):
-            for x in range(width):
-                r, g, b, a = pixels[x, y]
-
-                # 半透明部分の処理
-                if 0 < a < 255:
-                    # 暗いピクセルを検出（閾値を上げて、より多くの暗いピクセルを透明化）
-                    if r < 50 and g < 50 and b < 50:
-                        pixels[x, y] = (r, g, b, 0)
-                    # 透明度が低い場合は完全に透明にする
-                    elif a < 50:
-                        pixels[x, y] = (r, g, b, 0)
-                    # 透明度が高い場合は完全に不透明にする
-                    elif a > 200:
-                        pixels[x, y] = (r, g, b, 255)
-
-                # 完全に不透明なピクセル
-                elif a == 255:
-                    # 黒っぽいピクセルを検出（閾値を上げる）
-                    if r < 50 and g < 50 and b < 50:
-                        # 孤立した黒ピクセルまたはエッジの黒を除去
-                        # 周囲3x3の範囲をチェック
-                        transparent_neighbors = 0
-                        total_neighbors = 0
-
-                        for dx in range(-1, 2):
-                            for dy in range(-1, 2):
-                                if dx == 0 and dy == 0:
-                                    continue
-                                nx, ny = x + dx, y + dy
-                                if 0 <= nx < width and 0 <= ny < height:
-                                    total_neighbors += 1
-                                    _, _, _, na = pixels[nx, ny]
-                                    if na < 200:
-                                        transparent_neighbors += 1
-
-                        # 透明な隣接ピクセルが多い場合は黒を透明化
-                        if transparent_neighbors > 0 or total_neighbors < 8:
-                            pixels[x, y] = (r, g, b, 0)
-
-        # Step 3: 追加のエロージョン処理（黒残りをさらに削除）
-        # もう一度ピクセルをスキャンして、孤立した暗いピクセルを削除
-        for y in range(height):
-            for x in range(width):
-                r, g, b, a = pixels[x, y]
-
-                # アルファ値が低いピクセルの周囲をチェック
-                if a > 0 and a < 200:
-                    brightness = (r + g + b) / 3
-                    if brightness < 40:
-                        pixels[x, y] = (r, g, b, 0)
-
-        # Step 4: 結果を保存
-        buffer = io.BytesIO()
-        img.save(buffer, format="PNG", optimize=True)
-        return buffer.getvalue()
-
-    except Exception as e:
-        logger.error(f"Black background removal failed: {e}")
-        # フォールバック処理
-        try:
-            return remove(image_bytes)  # 基本的なrembg処理にフォールバック
-        except Exception as fallback_error:
-            logger.error(f"Fallback removal also failed: {fallback_error}")
-            # 最終フォールバック: オリジナル画像を返す
-            return image_bytes
+        logger.error(f"White background removal failed: {e}")
+        # 最終フォールバック: オリジナル画像を返す
+        return image_bytes
 
 def create_simple_prompt_without_expression(character: SimpleCharacter) -> str:
     """簡略化されたキャラクター情報から仕様書フォーマットのプロンプトを作成"""
@@ -1130,7 +973,7 @@ def create_fantasy_prompt(character: FantasyCharacter, include_outfit: bool = Tr
 
     prompt = f"""A high-quality fantasy character illustration in the style of premium Japanese mobile games, featuring a beautiful anime-style character with {character.hair_length} {character.hair_color} hair in {character.hair_style} style, {outfit_part}. The character has {character.eye_shape} eyes in {character.eye_color} color, showing {character.expression} that captures their personality.
 
-The character is shown in full body standing pose against a pure black background (#000000), displaying the entire outfit from head to toe. The character should have {height_desc}.
+The character is shown in full body standing pose against a pure white background (#FFFFFF), displaying the entire outfit from head to toe. The character should have {height_desc}.
 
 IMPORTANT: Even for youthful/petite option, maintain realistic human anatomy and proportions. This represents a younger or shorter character, NOT a stylized or deformed character. Keep facial features and body structure anatomically correct.
 
@@ -1138,7 +981,7 @@ Use soft, muted color palette with low saturation around 40-60%. Apply pastel-li
 
 The artistic style should embody the sophisticated digital painting techniques seen in games like Granblue Fantasy or Fate/Grand Order, with extremely detailed linework using thin, delicate lines that vary in weight to create depth and flow. The line art should be colored rather than pure black, using darker tones of the local colors for each area.
 
-The background must be completely black (#000000) to make the character stand out as a game asset or character portrait. No environmental elements, only the character against the black void.
+The background must be completely white (#FFFFFF) to make the character stand out as a game asset or character portrait. No environmental elements, only the character against the white void.
 
 For the coloring technique, employ a refined cel-shading approach with two distinct shadow layers. Shadows should be very subtle - first shadow only 8-10% darker than base color, second shadow 15-20% darker. Use warm gray or beige tones for shadows instead of pure darker colors. Blend shadows softly with gradient transitions.
 
@@ -1215,7 +1058,7 @@ MUST KEEP EXACTLY THE SAME:
 - Hair style, color, and length
 - Outfit and clothing details
 - Eye color and shape (only change the emotion in the eyes)
-- Background (pure black)
+- Background (pure white)
 - Art style and color palette
 - Character proportions
 
@@ -1307,7 +1150,7 @@ MUST KEEP EXACTLY THE SAME:
 - Hair style, color, and length
 - Outfit and clothing details
 - Eye color and shape (only change the emotion in the eyes)
-- Background (pure black)
+- Background (pure white)
 - Art style and color palette
 - Character proportions
 
@@ -1370,7 +1213,7 @@ This is image editing task, not new image generation. Preserve all visual detail
         processed_images = []
         for idx, img_bytes in enumerate(all_images):
             logger.info(f"Removing background from fantasy image {idx + 1}/{len(all_images)}")
-            processed = remove_background_birefnet(img_bytes)
+            processed = remove_white_background(img_bytes)
             processed_images.append(processed)
 
         logger.info(f"Generated and processed {len(processed_images)} fantasy images successfully (6 specified outfit + 6 casual outfit)")
