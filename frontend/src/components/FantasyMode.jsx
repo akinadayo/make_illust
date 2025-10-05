@@ -11,9 +11,48 @@ function FantasyMode({ setGeneratedImages, isGenerating, setIsGenerating }) {
   const [eyeColor, setEyeColor] = useState('')
   const [expression, setExpression] = useState('')
   const [error, setError] = useState('')
+  const [outfitImage, setOutfitImage] = useState(null)
+  const [outfitFromImage, setOutfitFromImage] = useState('')
+  const [analyzingOutfit, setAnalyzingOutfit] = useState(false)
+
+  const handleOutfitImageUpload = async (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+
+    setOutfitImage(file)
+    setAnalyzingOutfit(true)
+    setError('')
+
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://standing-set-backend-812480532939.asia-northeast1.run.app'
+
+      const formData = new FormData()
+      formData.append('image_file', file)
+
+      const response = await fetch(`${apiUrl}/api/analyze-outfit`, {
+        method: 'POST',
+        body: formData
+      })
+
+      if (!response.ok) {
+        throw new Error(`服装解析エラー: ${response.status}`)
+      }
+
+      const data = await response.json()
+      setOutfitFromImage(data.outfit_description)
+      setError('')
+    } catch (err) {
+      console.error('Outfit analysis error:', err)
+      setError(`服装の解析に失敗しました: ${err.message}`)
+      setOutfitImage(null)
+      setOutfitFromImage('')
+    } finally {
+      setAnalyzingOutfit(false)
+    }
+  }
 
   const generateFantasyImages = async () => {
-    if (!hairLength.trim() || !hairColor.trim() || !hairStyle.trim() || 
+    if (!hairLength.trim() || !hairColor.trim() || !hairStyle.trim() ||
         !outfit.trim() || !eyeShape.trim() || !eyeColor.trim() || !expression.trim()) {
       setError('すべての項目を入力してください')
       return
@@ -30,6 +69,7 @@ function FantasyMode({ setGeneratedImages, isGenerating, setIsGenerating }) {
       hair_color: hairColor,
       hair_style: hairStyle,
       outfit: outfit,
+      outfit_from_image: outfitFromImage || null,
       eye_shape: eyeShape,
       eye_color: eyeColor,
       expression: expression
@@ -139,6 +179,8 @@ function FantasyMode({ setGeneratedImages, isGenerating, setIsGenerating }) {
     setHeight('medium')
     setError('')
     setGeneratedImages([])
+    setOutfitImage(null)
+    setOutfitFromImage('')
   }
 
   return (
@@ -218,6 +260,27 @@ function FantasyMode({ setGeneratedImages, isGenerating, setIsGenerating }) {
               placeholder="例: knight armor, mage robe, elegant dress"
               className="fantasy-input"
             />
+          </div>
+
+          <div className="form-group">
+            <label>服装画像をアップロード（オプション）</label>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={handleOutfitImageUpload}
+              className="fantasy-input-file"
+              disabled={analyzingOutfit || isGenerating}
+            />
+            {analyzingOutfit && (
+              <div className="analyzing-message">
+                服装を解析中...
+              </div>
+            )}
+            {outfitFromImage && (
+              <div className="outfit-analysis-result">
+                ✓ 解析完了: {outfitFromImage.substring(0, 100)}...
+              </div>
+            )}
           </div>
 
           <div className="form-row">

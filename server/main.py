@@ -105,6 +105,7 @@ class FantasyCharacter(BaseModel):
     hair_color: str = Field(..., description="髪色（例：silver、blonde、black）")
     hair_style: str = Field(..., description="髪型（例：straight、wavy、twintails）")
     outfit: str = Field(..., description="服装（例：knight armor、mage robe、elegant dress）")
+    outfit_from_image: Optional[str] = Field(default=None, description="画像から解析された服装の説明文")
     eye_shape: str = Field(..., description="瞳の形（例：large、narrow、almond-shaped）")
     eye_color: str = Field(..., description="瞳の色（例：blue、red、heterochromia）")
     expression: str = Field(..., description="表情（例：confident、mysterious、gentle）")
@@ -224,6 +225,127 @@ async def estimate_depth(image_file: Optional[UploadFile] = File(None), use_dept
     except Exception as e:
         logger.error(f"Depth estimation error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Depth estimation failed: {str(e)}")
+
+@app.post("/api/analyze-outfit")
+async def analyze_outfit(image_file: UploadFile = File(...)):
+    """
+    アップロードされた服装画像を解析して詳細な説明を生成
+    Gemini 1.5 Flashを使用
+    """
+    try:
+        # 画像データを読み込み
+        image_bytes = await image_file.read()
+
+        # 画像をリサイズ
+        img = Image.open(io.BytesIO(image_bytes))
+        img.thumbnail((1024, 1024), Image.Resampling.LANCZOS)
+
+        buffer = io.BytesIO()
+        img.save(buffer, format="PNG")
+        image_base64 = base64.b64encode(buffer.getvalue()).decode()
+
+        # Gemini 1.5 Flashで服装を解析
+        outfit_description = analyze_outfit_with_gemini(image_base64)
+
+        return JSONResponse(content={
+            "status": "success",
+            "outfit_description": outfit_description
+        })
+
+    except Exception as e:
+        logger.error(f"Outfit analysis error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Outfit analysis failed: {str(e)}")
+
+def analyze_outfit_with_gemini(image_base64: str) -> str:
+    """
+    Gemini 1.5 Flashを使用して服装画像を解析
+    ファンタジーキャラクター生成用の詳細な説明文を生成
+    """
+    if not credentials:
+        logger.warning("Credentials not configured for outfit analysis")
+        raise Exception("Credentials not configured")
+
+    try:
+        # 認証トークンの取得
+        if hasattr(credentials, 'refresh'):
+            credentials.refresh(Request())
+
+        token = getattr(credentials, 'token', None)
+        if not token:
+            raise Exception("Failed to acquire access token")
+
+        # Gemini 1.5 Flash（画像理解対応）のエンドポイント
+        vision_endpoint = f"https://{LOCATION}-aiplatform.googleapis.com/v1/projects/{PROJECT_ID}/locations/{LOCATION}/publishers/google/models/gemini-1.5-flash:generateContent"
+
+        # 服装解析用のプロンプト
+        prompt = """この画像の服装を詳細に分析して、ファンタジーキャラクター生成用の説明文を作成してください。
+
+以下の情報を含めてください：
+- 服装のスタイル（鎧、ローブ、ドレス、カジュアルなど）
+- 色とデザインの特徴
+- 装飾やアクセサリー
+- 全体的な雰囲気（騎士風、魔法使い風、貴族風など）
+
+簡潔で明確な英語の説明文として出力してください。JSON形式ではなく、プレーンテキストで。
+例: "dark blue school blazer with white trim, pleated plaid skirt in navy and red, white shirt with red ribbon, knee-high dark socks, brown leather shoes"
+"""
+
+        request_body = {
+            "contents": [{
+                "role": "user",
+                "parts": [
+                    {
+                        "inline_data": {
+                            "mime_type": "image/png",
+                            "data": image_base64
+                        }
+                    },
+                    {"text": prompt}
+                ]
+            }],
+            "generationConfig": {
+                "temperature": 0.3,
+                "topP": 0.95,
+                "topK": 40,
+                "candidateCount": 1,
+                "maxOutputTokens": 500
+            }
+        }
+
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json"
+        }
+
+        logger.info(f"Calling Gemini 1.5 Flash for outfit analysis")
+        response = requests.post(
+            vision_endpoint,
+            headers=headers,
+            json=request_body,
+            timeout=30
+        )
+
+        if response.status_code != 200:
+            logger.error(f"Gemini API error: {response.status_code} - {response.text}")
+            raise Exception(f"Gemini API returned status {response.status_code}")
+
+        result = response.json()
+
+        # レスポンスからテキストを抽出
+        try:
+            content = result['candidates'][0]['content']['parts'][0]['text']
+            # テキストをクリーンアップ（改行や余分な空白を削除）
+            outfit_description = ' '.join(content.strip().split())
+            logger.info(f"Outfit analysis result: {outfit_description[:100]}...")
+            return outfit_description
+
+        except Exception as e:
+            logger.warning(f"Failed to parse Gemini response: {e}")
+            raise Exception("Failed to parse outfit description")
+
+    except Exception as e:
+        logger.error(f"Error in analyze_outfit_with_gemini: {e}")
+        raise
 
 def analyze_depth_with_gemini(image_base64: str) -> Dict[str, Any]:
     """
@@ -1253,17 +1375,20 @@ def generate_emo_with_vertex(character: EmoCharacter) -> List[bytes]:
 
 def create_fantasy_prompt(character: FantasyCharacter) -> str:
     """ファンタジーキャラクター用のプロンプトを作成"""
-    
+
     # 頭身の設定
     height_mapping = {
         "small": "youthful/petite proportions, 5-5.5 heads tall with youthful proportions, shorter height but normal realistic anatomy, NOT chibi or deformed style",
         "medium": "balanced proportions, exactly 6 heads tall, measure head size and make body exactly 5 more head lengths",
         "tall": "tall/elegant proportions, 7-8 heads tall with small head, long legs, elongated limbs for elegant mature style"
     }
-    
+
     height_desc = height_mapping.get(character.height, height_mapping["medium"])
-    
-    prompt = f"""A high-quality fantasy character illustration in the style of premium Japanese mobile games, featuring a beautiful anime-style character with {character.hair_length} {character.hair_color} hair in {character.hair_style} style, wearing {character.outfit}. The character has {character.eye_shape} eyes in {character.eye_color} color, showing {character.expression} that captures their personality.
+
+    # 服装の説明を決定（画像ベースの説明がある場合は優先）
+    outfit_description = character.outfit_from_image if character.outfit_from_image else character.outfit
+
+    prompt = f"""A high-quality fantasy character illustration in the style of premium Japanese mobile games, featuring a beautiful anime-style character with {character.hair_length} {character.hair_color} hair in {character.hair_style} style, wearing {outfit_description}. The character has {character.eye_shape} eyes in {character.eye_color} color, showing {character.expression} that captures their personality.
 
 The character is shown in full body standing pose against a pure black background (#000000), displaying the entire outfit from head to toe. The character should have {height_desc}.
 
