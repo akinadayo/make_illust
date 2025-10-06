@@ -1125,7 +1125,7 @@ This is image editing task, not new image generation. Preserve all visual detail
         # 制服の1枚目を参照にして、服装だけ私服に変更
         casual_change_prompt = f"""CRITICAL INSTRUCTION: Edit the provided reference image to change ONLY the outfit to casual clothing.
 
-Target outfit: Casual modern outfit (comfortable t-shirt or hoodie, jeans or casual skirt, sneakers or casual shoes)
+Target outfit: Casual modern outfit (comfortable t-shirt or blouse, skirt or casual dress, sneakers or casual shoes)
 
 MUST KEEP EXACTLY THE SAME:
 - Character's face, facial features, and expression
