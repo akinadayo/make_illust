@@ -104,6 +104,58 @@ function FantasyMode({ setGeneratedImages, isGenerating, setIsGenerating }) {
     }
   }
 
+  const downloadAllImages = () => {
+    if (!generatedImages || generatedImages.length === 0) {
+      setError('ダウンロードする画像がありません')
+      return
+    }
+
+    // ファイル名の定義（画像の順番: 制服6枚 + 私服6枚）
+    const fileNames = [
+      // 制服セット (1-6)
+      'uniform_nomal.png',
+      'uniform_smile.png',
+      'uniform_troubled.png',
+      'uniform_big_smile.png',
+      'uniform_sad.png',
+      'uniform_angry.png',
+      // 私服セット (7-12)
+      'private_nomal.png',
+      'private_smile.png',
+      'private_troubled.png',
+      'private_big_smile.png',
+      'private_sad.png',
+      'private_angry.png'
+    ]
+
+    // JSZipを使ってZIPファイルを作成
+    import('jszip').then(({ default: JSZip }) => {
+      const zip = new JSZip()
+
+      generatedImages.forEach((base64Image, index) => {
+        const fileName = fileNames[index] || `image_${index + 1}.png`
+        // base64からバイナリデータに変換
+        const imageData = base64Image.replace(/^data:image\/\w+;base64,/, '')
+        zip.file(fileName, imageData, { base64: true })
+      })
+
+      // ZIPファイルを生成してダウンロード
+      zip.generateAsync({ type: 'blob' }).then((content) => {
+        const url = URL.createObjectURL(content)
+        const link = document.createElement('a')
+        link.href = url
+        link.download = `fantasy_character_${Date.now()}.zip`
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+        URL.revokeObjectURL(url)
+      })
+    }).catch((err) => {
+      console.error('JSZip loading error:', err)
+      setError('ダウンロードに失敗しました')
+    })
+  }
+
   const randomize = () => {
     // ランダムデータの配列
     const hairLengths = ['long', 'medium', 'short', 'very long', 'shoulder-length']
@@ -352,6 +404,13 @@ function FantasyMode({ setGeneratedImages, isGenerating, setIsGenerating }) {
               disabled={isGenerating}
             >
               リセット
+            </button>
+            <button
+              onClick={downloadAllImages}
+              className="download-button"
+              disabled={isGenerating || !generatedImages || generatedImages.length === 0}
+            >
+              12枚まとめてダウンロード (ZIP)
             </button>
           </div>
         </div>
