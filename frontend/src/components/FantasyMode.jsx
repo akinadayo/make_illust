@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import './FantasyMode.css'
 
-function FantasyMode({ setGeneratedImages, isGenerating, setIsGenerating }) {
+function FantasyMode({ generatedImages, setGeneratedImages, isGenerating, setIsGenerating }) {
   const [height, setHeight] = useState('medium')
   const [hairLength, setHairLength] = useState('')
   const [hairColor, setHairColor] = useState('')

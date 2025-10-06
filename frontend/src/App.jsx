@@ -114,6 +114,7 @@ function App() {
           />
         ) : (
           <FantasyMode
+            generatedImages={generatedImages}
             setGeneratedImages={setGeneratedImages}
             isGenerating={isGenerating}
             setIsGenerating={setIsGenerating}

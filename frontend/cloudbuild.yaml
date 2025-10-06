@@ -1,0 +1,36 @@
+steps:
+  # Build the container image
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-f'
+      - 'Dockerfile.production'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/standing-set-frontend:latest'
+      - '--build-arg'
+      - 'VITE_API_URL=https://standing-set-backend-545652287683.asia-northeast1.run.app'
+      - '.'
+
+  # Push the container image to Container Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/standing-set-frontend:latest']
+
+  # Deploy container image to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'standing-set-frontend'
+      - '--image'
+      - 'gcr.io/$PROJECT_ID/standing-set-frontend:latest'
+      - '--region'
+      - 'asia-northeast1'
+      - '--platform'
+      - 'managed'
+      - '--allow-unauthenticated'
+      - '--port'
+      - '80'
+
+images:
+  - 'gcr.io/$PROJECT_ID/standing-set-frontend:latest'
