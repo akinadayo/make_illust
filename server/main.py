@@ -101,6 +101,7 @@ class EmoCharacter(BaseModel):
 class FantasyCharacter(BaseModel):
     character_id: str = Field(default="fantasy_001", description="キャラクターID")
     seed: int = Field(default=123456789, description="シード値")
+    gender: str = Field(default="female", description="性別: male/female")
     height: str = Field(..., description="頭身: small/medium/tall")
     hair_length: str = Field(..., description="髪の長さ（例：long、short、medium）")
     hair_color: str = Field(..., description="髪色（例：silver、blonde、black）")
@@ -956,12 +957,16 @@ def create_fantasy_prompt(character: FantasyCharacter, include_outfit: bool = Tr
 
     # 頭身の設定
     height_mapping = {
-        "small": "youthful/petite proportions, 5-5.5 heads tall with youthful proportions, shorter height but normal realistic anatomy, NOT chibi or deformed style",
+        "small": "youthful proportions, 5-5.5 heads tall with youthful proportions, shorter height but normal realistic anatomy, NOT chibi or deformed style",
         "medium": "balanced proportions, exactly 6 heads tall, measure head size and make body exactly 5 more head lengths",
-        "tall": "tall/elegant proportions, 7-8 heads tall with small head, long legs, elongated limbs for elegant mature style"
+        "tall": "tall proportions, 7-8 heads tall with small head, long legs, elongated limbs for mature style"
     }
 
     height_desc = height_mapping.get(character.height, height_mapping["medium"])
+
+    # 性別に応じた記述
+    gender_desc = "male" if character.gender == "male" else "female"
+    character_desc = "anime-style character" if character.gender == "male" else "beautiful anime-style character"
 
     # 服装画像がある場合はプロンプトに服装説明を含めない
     if character.outfit_image_base64 and not include_outfit:
@@ -971,7 +976,7 @@ def create_fantasy_prompt(character: FantasyCharacter, include_outfit: bool = Tr
         outfit_part = f"wearing {character.outfit}"
         logger.info(f"Using outfit text description: {character.outfit}")
 
-    prompt = f"""A high-quality fantasy character illustration in the style of premium Japanese mobile games, featuring a beautiful anime-style character with {character.hair_length} {character.hair_color} hair in {character.hair_style} style, {outfit_part}. The character has {character.eye_shape} eyes in {character.eye_color} color, showing {character.expression} that captures their personality.
+    prompt = f"""A high-quality fantasy character illustration in the style of premium Japanese mobile games, featuring a {character_desc} ({gender_desc}) with {character.hair_length} {character.hair_color} hair in {character.hair_style} style, {outfit_part}. The character has {character.eye_shape} eyes in {character.eye_color} color, showing {character.expression} that captures their personality.
 
 The character is shown in full body standing pose against a pure white background (#FFFFFF), displaying the entire outfit from head to toe. The character should have {height_desc}.
 

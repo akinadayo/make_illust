@@ -2,6 +2,7 @@ import { useState } from 'react'
 import './FantasyMode.css'
 
 function FantasyMode({ generatedImages, setGeneratedImages, isGenerating, setIsGenerating }) {
+  const [gender, setGender] = useState('female')
   const [height, setHeight] = useState('medium')
   const [hairLength, setHairLength] = useState('')
   const [hairColor, setHairColor] = useState('')
@@ -58,6 +59,7 @@ function FantasyMode({ generatedImages, setGeneratedImages, isGenerating, setIsG
     const fantasyCharacter = {
       character_id: `fantasy_${Date.now()}`,
       seed: Math.floor(Math.random() * 1000000),
+      gender: gender,
       height: height,
       hair_length: hairLength,
       hair_color: hairColor,
@@ -215,6 +217,7 @@ function FantasyMode({ generatedImages, setGeneratedImages, isGenerating, setIsG
   }
 
   const reset = () => {
+    setGender('female')
     setHairLength('')
     setHairColor('')
     setHairStyle('')
@@ -238,6 +241,24 @@ function FantasyMode({ generatedImages, setGeneratedImages, isGenerating, setIsG
         </div>
 
         <div className="fantasy-form">
+          <div className="form-group">
+            <label>性別</label>
+            <div className="height-buttons">
+              <button
+                className={`height-btn ${gender === 'female' ? 'active' : ''}`}
+                onClick={() => setGender('female')}
+              >
+                女性
+              </button>
+              <button
+                className={`height-btn ${gender === 'male' ? 'active' : ''}`}
+                onClick={() => setGender('male')}
+              >
+                男性
+              </button>
+            </div>
+          </div>
+
           <div className="form-group">
             <label>頭身</label>
             <div className="height-buttons">
