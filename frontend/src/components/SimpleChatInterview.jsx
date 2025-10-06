@@ -57,7 +57,7 @@ function SimpleChatInterview({ characterData, setCharacterData, setGeneratedImag
     // APIコール
     try {
       // 本番環境では必ずhttpsのURLを使用
-      const apiUrl = import.meta.env.VITE_API_URL || 'https://standing-set-backend-812480532939.asia-northeast1.run.app'
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://standing-set-backend-545652287683.asia-northeast1.run.app'
       console.log('Calling API:', apiUrl)
       
       const response = await fetch(`${apiUrl}/api/generate/simple`, {
