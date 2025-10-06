@@ -159,30 +159,41 @@ function FantasyMode({ generatedImages, setGeneratedImages, isGenerating, setIsG
   }
 
   const randomize = () => {
-    // ランダムデータの配列
-    const hairLengths = ['long', 'medium', 'short', 'very long', 'shoulder-length']
+    // 性別に応じたランダムデータの配列
+    const hairLengths = gender === 'male'
+      ? ['short', 'medium', 'very short']
+      : ['long', 'medium', 'short', 'very long', 'shoulder-length']
+
     const hairColors = [
       'black', 'dark brown', 'brown', 'light brown', 'chestnut',
       'blonde', 'platinum blonde', 'silver', 'white',
       'red', 'auburn', 'pink', 'purple', 'blue', 'green'
     ]
-    const hairStyles = [
-      'straight', 'wavy', 'curly', 'ponytail', 'twintails', 'braided',
-      'bob cut', 'pixie cut', 'messy', 'elegant updo', 'half-up',
-      'side ponytail', 'twin braids', 'long flowing'
-    ]
-    const outfits = [
-      'knight armor', 'light armor', 'heavy armor', 'battle dress',
-      'mage robe', 'wizard cloak', 'scholar outfit',
-      'elegant dress', 'noble dress', 'princess gown', 'ball gown',
-      'adventurer gear', 'ranger outfit', 'thief outfit',
-      'priestess robe', 'nun outfit', 'shrine maiden',
-      'fantasy kimono', 'eastern dress', 'casual fantasy outfit'
-    ]
-    const eyeShapes = [
-      'large round', 'almond-shaped', 'narrow', 'upturned', 'droopy',
-      'sharp', 'gentle', 'cat-like', 'innocent round'
-    ]
+
+    const hairStyles = gender === 'male'
+      ? ['short', 'messy', 'spiky', 'slicked back', 'crew cut', 'undercut',
+         'side part', 'wavy', 'curly short', 'straight short']
+      : ['straight', 'wavy', 'curly', 'ponytail', 'twintails', 'braided',
+         'bob cut', 'pixie cut', 'messy', 'elegant updo', 'half-up',
+         'side ponytail', 'twin braids', 'long flowing']
+
+    const outfits = gender === 'male'
+      ? ['knight armor', 'light armor', 'heavy armor', 'plate armor',
+         'mage robe', 'wizard cloak', 'scholar outfit', 'war mage outfit',
+         'adventurer gear', 'ranger outfit', 'thief outfit', 'assassin gear',
+         'warrior outfit', 'samurai armor', 'eastern warrior', 'battle outfit',
+         'casual fantasy outfit', 'mercenary gear']
+      : ['knight armor', 'light armor', 'heavy armor', 'battle dress',
+         'mage robe', 'wizard cloak', 'scholar outfit',
+         'elegant dress', 'noble dress', 'princess gown', 'ball gown',
+         'adventurer gear', 'ranger outfit', 'thief outfit',
+         'priestess robe', 'nun outfit', 'shrine maiden',
+         'fantasy kimono', 'eastern dress', 'casual fantasy outfit']
+
+    const eyeShapes = gender === 'male'
+      ? ['almond-shaped', 'narrow', 'sharp', 'gentle', 'determined', 'fierce']
+      : ['large round', 'almond-shaped', 'narrow', 'upturned', 'droopy',
+         'sharp', 'gentle', 'cat-like', 'innocent round']
 
     // 目の色は自然な色が多め（重み付け）
     const eyeColors = [
@@ -194,11 +205,12 @@ function FantasyMode({ generatedImages, setGeneratedImages, isGenerating, setIsG
       'heterochromia (brown and blue)', 'heterochromia (green and brown)'
     ]
 
-    const expressions = [
-      'confident', 'mysterious', 'gentle', 'cheerful', 'serious',
-      'shy', 'proud', 'determined', 'melancholic', 'playful',
-      'calm', 'fierce', 'kind', 'aloof', 'charming'
-    ]
+    const expressions = gender === 'male'
+      ? ['confident', 'mysterious', 'serious', 'proud', 'determined',
+         'calm', 'fierce', 'aloof', 'stoic', 'battle-ready', 'focused']
+      : ['confident', 'mysterious', 'gentle', 'cheerful', 'serious',
+         'shy', 'proud', 'determined', 'melancholic', 'playful',
+         'calm', 'fierce', 'kind', 'aloof', 'charming']
 
     const heights = ['small', 'medium', 'tall']
 

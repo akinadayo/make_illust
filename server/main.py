@@ -1128,9 +1128,15 @@ This is image editing task, not new image generation. Preserve all visual detail
         logger.info("Generating second set: casual outfit with 6 expressions using base image as reference")
 
         # 制服の1枚目を参照にして、服装だけ私服に変更
+        # 性別に応じた私服の説明
+        if character.gender == "male":
+            casual_outfit_desc = "Casual modern male outfit (comfortable t-shirt or casual shirt, jeans or casual pants, sneakers or casual shoes)"
+        else:
+            casual_outfit_desc = "Casual modern outfit (comfortable t-shirt or blouse, skirt or casual dress, sneakers or casual shoes)"
+
         casual_change_prompt = f"""CRITICAL INSTRUCTION: Edit the provided reference image to change ONLY the outfit to casual clothing.
 
-Target outfit: Casual modern outfit (comfortable t-shirt or blouse, skirt or casual dress, sneakers or casual shoes)
+Target outfit: {casual_outfit_desc}
 
 MUST KEEP EXACTLY THE SAME:
 - Character's face, facial features, and expression
